@@ -47,7 +47,9 @@ def main():
         downloader = BlockDownload.ofYamlPath(yaml_path)
     else:
         downloader = BlockDownload(
-            url=args.url, blocksize=args.blocksize, unit=args.unit
+            name=args.name,
+            url=args.url,
+            blocksize=args.blocksize, unit=args.unit
         )
         downloader.yaml_path = yaml_path
 

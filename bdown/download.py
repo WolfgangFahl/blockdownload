@@ -101,6 +101,7 @@ class Block:
 
 @lod_storable
 class BlockDownload:
+    name: str
     url: str
     blocksize: int
     chunk_size: int = 8192  # size of a response chunk
@@ -212,7 +213,8 @@ class BlockDownload:
             to_block = total_blocks - 1
 
         for index, start, end in self.block_ranges(from_block, to_block):
-            part_file = os.path.join(target, f"{index:04d}.part")
+            part_name=f"{self.name}-{index:04d}.part"
+            part_file = os.path.join(target, part_name)
 
             # Skip download if matching md5_head exists
             if index < len(self.blocks):
@@ -224,6 +226,9 @@ class BlockDownload:
                         chunk_limit=1
                     )
                     if actual_head == existing.md5_head:
+                        if progress_bar:
+                            progress_bar.set_description(part_name)
+                            progress_bar.update(end - start + 1)
                         continue  # skip re-download
 
             headers = {"Range": f"bytes={start}-{end}"}
