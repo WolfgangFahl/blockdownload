@@ -57,12 +57,23 @@ def main():
     if args.progress:
         from_block = args.from_block
         to_block = args.to_block
-        progress_bar = downloader.get_progress_bar(from_block, to_block)
+        progress_bar = downloader.get_progress_bar(from_block=from_block, to_block=to_block)
         progress_bar.set_description("Downloading")
         with progress_bar:
-            downloader.download(args.target, from_block, to_block, progress_bar=progress_bar)
+            downloader.download(
+                target=args.target,
+                from_block=from_block,
+                to_block=to_block,
+                boost=args.boost,
+                progress_bar=progress_bar
+            )
     else:
-        downloader.download(args.target, args.from_block, args.to_block)
+        downloader.download(
+            target=args.target,
+            from_block=args.from_block,
+            to_block=args.to_block,
+            boost=args.boost
+        )
 
 
 if __name__ == "__main__":

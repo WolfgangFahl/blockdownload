@@ -241,7 +241,7 @@ class BlockDownload:
             if index>0:
                 self.active_blocks.add(index)
             else:
-                self.active_blocks.remove(index)
+                self.active_blocks.remove(-index)
             if progress_bar:
                 progress_bar.set_description(f"Blocks {self.block_range_str()}")
 
@@ -263,7 +263,7 @@ class BlockDownload:
                         progress_bar.update(end - start + 1)
                     return
 
-        self.update_progress(progress_bar, index)
+        self.update_progress(progress_bar, index+1)
         headers = {"Range": f"bytes={start}-{end}"}
         response = requests.get(self.url, headers=headers, stream=True)
         if response.status_code not in (200, 206):
@@ -284,7 +284,7 @@ class BlockDownload:
             else:
                 self.blocks.append(block)
             self.save()
-        self.update_progress(progress_bar, -index)
+        self.update_progress(progress_bar, -(index+1))
 
     def get_progress_bar(self, from_block: int, to_block: int):
         _, _, total_bytes = self.compute_total_bytes(from_block, to_block)
