@@ -52,7 +52,7 @@ def main():
             url=args.url,
             blocksize=args.blocksize, unit=args.unit
         )
-        downloader.yaml_path = yaml_path
+    downloader.yaml_path = yaml_path
 
     if args.progress:
         from_block = args.from_block
