@@ -39,7 +39,7 @@ options:
   --to-block TO_BLOCK   Last block index (inclusive)
   --boost BOOST         Number of concurrent download threads (default: 1)
   --progress            Show tqdm progress bar
-``
+```
 
 ### Authors
 * [Wolfgang Fahl](http://www.bitplan.com/Wolfgang_Fahl)
