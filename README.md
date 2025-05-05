@@ -1,2 +1,2 @@
-# download-patcher
-Patch an incomplete download
+# blockdownload
+download large files with parallel blocks
