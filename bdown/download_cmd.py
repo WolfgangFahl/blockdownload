@@ -36,6 +36,7 @@ def main():
     )
     parser.add_argument("--from-block", type=int, default=0, help="First block index")
     parser.add_argument("--to-block", type=int, help="Last block index (inclusive)")
+    parser.add_argument("--boost", type=int, default=1, help="Number of concurrent download threads (default: 1)")
     parser.add_argument(
         "--progress", action="store_true", help="Show tqdm progress bar"
     )
