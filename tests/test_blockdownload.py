@@ -34,6 +34,7 @@ class TestBlockDownload(BaseTest):
             block_download = BlockDownload.load_from_yaml_file(self.yaml_path)
         else:
             block_download = BlockDownload(
+                name="blazegraph",
                 url="https://datasets.orbopengraph.com/blazegraph/data.jnl",
                 blocksize=10,
                 unit="MB",
