@@ -1,0 +1,6 @@
+#!/bin/bash
+# WF 2023-07-19
+# simple install via pyproject.toml
+pip install pyMeterBus
+pip install py-3rdparty-mediawiki
+pip install .[mbus,sso]
