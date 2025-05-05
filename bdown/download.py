@@ -3,7 +3,7 @@ Created on 2025-05-05
 
 @author: wf
 """
-
+from tqdm import tqdm
 import hashlib
 import os
 from dataclasses import field
@@ -18,32 +18,49 @@ class Block:
     """
     A single download block.
     """
+
     block: int
     path: str
     offset: int
-    md5: str = None
+    md5: str = None  # full md5 hash
+    md5_head: str = None  # hash of first chunk
 
-    def calc_md5(self, base_path: str) -> str:
+    def calc_md5(self, base_path: str, chunk_size: int = 8192, chunk_limit: int = None) -> str:
         """
         Calculate the MD5 checksum of this block's file.
 
         Args:
-            base_path: The directory in which the block's relative path is located.
+            base_path: Directory where the block's relative path is located.
+            chunk_size: Bytes per read operation (default: 8192).
+            chunk_limit: Maximum number of chunks to read (e.g. 1 for md5_head).
 
         Returns:
-            str: The MD5 hexadecimal digest of the block file.
+            str: The MD5 hexadecimal digest.
         """
         full_path = os.path.join(base_path, self.path)
         hash_md5 = hashlib.md5()
+        index = 0
+
         with open(full_path, "rb") as f:
-            for chunk in iter(lambda: f.read(8192), b""):
+            for chunk in iter(lambda: f.read(chunk_size), b""):
                 hash_md5.update(chunk)
-        md5 = hash_md5.hexdigest()
-        return md5
+                index += 1
+                if chunk_limit is not None and index >= chunk_limit:
+                    break
+
+        return hash_md5.hexdigest()
+
 
     @classmethod
-    def ofResponse(cls, block_index: int, offset: int, target_path: str,
-                   response: requests.Response, progress=None) -> "Block":
+    def ofResponse(
+        cls,
+        block_index: int,
+        offset: int,
+        chunk_size: int,
+        target_path: str,
+        response: requests.Response,
+        progress_bar=None,
+    ) -> "Block":
         """
         Create a Block from a download HTTP response.
 
@@ -52,34 +69,44 @@ class Block:
             offset: Byte offset within the full file.
             target_path: Path to the .part file to write.
             response: The HTTP response streaming the content.
-            progress: Optional callable(chunk_size: int) for reporting download progress.
+            progress_bar: optional progress_bar for reporting download progress.
 
         Returns:
             Block: The constructed block with calculated md5.
         """
         hash_md5 = hashlib.md5()
+        hash_head = hashlib.md5()
+        first = True
+        block_path=os.path.basename(target_path)
+        if progress_bar:
+            progress_bar.set_description(block_path)
         with open(target_path, "wb") as f:
-            for chunk in response.iter_content(chunk_size=8192):
+            for chunk in response.iter_content(chunk_size=chunk_size):
                 f.write(chunk)
                 hash_md5.update(chunk)
-                if progress:
-                    progress(len(chunk))
-        return cls(
+                if first:
+                    hash_head.update(chunk)
+                    first = False
+                if progress_bar:
+                    progress_bar.update(len(chunk))
+        block = cls(
             block=block_index,
-            path=os.path.basename(target_path),
+            path=block_path,
             offset=offset,
-            md5=hash_md5.hexdigest()
+            md5=hash_md5.hexdigest(),
+            md5_head=hash_head.hexdigest(),
         )
+        return block
 
 
 @lod_storable
 class BlockDownload:
     url: str
     blocksize: int
+    chunk_size: int = 8192  # size of a response chunk
     size: int = None
-    size_bytes: int = None
     unit: str = "MB"  # KB, MB, or GB
-    md5: str = None
+    md5: str = ""
     blocks: List[Block] = field(default_factory=list)
 
     def __post_init__(self):
@@ -96,9 +123,9 @@ class BlockDownload:
         return self.blocksize * self.unit_multipliers[self.unit]
 
     @classmethod
-    def ofYamlPath(cls,yaml_path:str):
-        block_download=cls.load_from_yaml_file(yaml_path)
-        block_download.yaml_path=yaml_path
+    def ofYamlPath(cls, yaml_path: str):
+        block_download = cls.load_from_yaml_file(yaml_path)
+        block_download.yaml_path = yaml_path
         return block_download
 
     def save(self):
@@ -110,7 +137,9 @@ class BlockDownload:
         response.raise_for_status()
         return int(response.headers.get("Content-Length", 0))
 
-    def block_ranges(self, from_block: int, to_block: int) -> List[Tuple[int, int, int]]:
+    def block_ranges(
+        self, from_block: int, to_block: int
+    ) -> List[Tuple[int, int, int]]:
         """
         Generate a list of (index, start, end) tuples for the given block range.
 
@@ -131,7 +160,9 @@ class BlockDownload:
             result.append((index, start, end))
         return result
 
-    def compute_total_bytes(self, from_block: int, to_block: int = None) -> Tuple[int, int, int]:
+    def compute_total_bytes(
+        self, from_block: int, to_block: int=None
+    ) -> Tuple[int, int, int]:
         """
         Compute the total number of bytes to download for a block range.
 
@@ -154,7 +185,13 @@ class BlockDownload:
 
         return from_block, to_block, total_bytes
 
-    def download(self, target: str, from_block: int = 0, to_block: int = None, yaml_path:str=None,progress=None):
+    def download(
+        self,
+        target: str,
+        from_block: int=0,
+        to_block: int=None,
+        progress_bar=None,
+    ):
         """
         Download selected blocks and save them to individual .part files.
 
@@ -162,23 +199,56 @@ class BlockDownload:
             target: Directory to store part files.
             from_block: First block index.
             to_block: Last block index (inclusive), or None to download all.
-            progress: Optional callable(chunk_size: int) to track progress.
+            progress_bar: Optional progress_bar to track progress.
         """
         if self.size is None:
             self.size = self._get_remote_file_size()
         os.makedirs(target, exist_ok=True)
-        self.blocks.clear()
 
         if to_block is None:
-            total_blocks = (self.size + self.blocksize_bytes - 1) // self.blocksize_bytes
+            total_blocks = (
+                self.size + self.blocksize_bytes - 1
+            ) // self.blocksize_bytes
             to_block = total_blocks - 1
 
         for index, start, end in self.block_ranges(from_block, to_block):
             part_file = os.path.join(target, f"{index:04d}.part")
+
+            # Skip download if matching md5_head exists
+            if index < len(self.blocks):
+                existing = self.blocks[index]
+                if os.path.exists(part_file) and existing.md5_head:
+                    actual_head = existing.calc_md5(
+                        base_path=target,
+                        chunk_size=self.chunk_size,
+                        chunk_limit=1
+                    )
+                    if actual_head == existing.md5_head:
+                        continue  # skip re-download
+
             headers = {"Range": f"bytes={start}-{end}"}
             response = requests.get(self.url, headers=headers, stream=True)
             if response.status_code not in (200, 206):
                 raise Exception(f"HTTP {response.status_code}: {response.text}")
-            block = Block.ofResponse(index, start, part_file, response, progress=progress)
-            self.blocks.append(block)
+
+            block = Block.ofResponse(
+                block_index=index,
+                offset=start,
+                chunk_size=self.chunk_size,
+                target_path=part_file,
+                response=response,
+                progress_bar=progress_bar,
+            )
+
+            if index < len(self.blocks):
+                self.blocks[index] = block
+            else:
+                self.blocks.append(block)
+
             self.save()
+
+    def get_progress_bar(self, from_block: int, to_block: int):
+        _, _, total_bytes = self.compute_total_bytes(from_block, to_block)
+        progress_bar = tqdm(total=total_bytes, unit="B", unit_scale=True)
+        return progress_bar
+

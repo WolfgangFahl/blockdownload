@@ -6,6 +6,8 @@ Created on 2025-05-05
 
 import os
 from datetime import datetime
+from tqdm import tqdm
+
 from bdown.download import BlockDownload
 from tests.basetest import BaseTest
 
@@ -15,10 +17,12 @@ class TestBlockDownload(BaseTest):
     Test the segmented download using HTTP range requests.
     """
 
-    def setUp(self, debug=False, profile=True):
+    def setUp(self, debug=True, profile=True):
         super().setUp(debug, profile)
         iso_date = datetime.now().strftime("%Y-%m-%d")
-        self.download_dir = os.path.join(os.path.expanduser("~"), "blazegraph", iso_date)
+        self.download_dir = os.path.join(
+            os.path.expanduser("~"), "blazegraph", iso_date
+        )
         os.makedirs(self.download_dir, exist_ok=True)
         self.yaml_path = os.path.join(self.download_dir, "blazegraph.yaml")
 
@@ -33,10 +37,22 @@ class TestBlockDownload(BaseTest):
             block_download = BlockDownload(
                 url="https://datasets.orbopengraph.com/blazegraph/data.jnl",
                 blocksize=10,
-                unit="MB"
+                unit="MB",
             )
-
-        block_download.download(self.download_dir, 0, 5)
+        from_block = 0
+        to_block = 5
+        if self.debug:
+            progress_bar = block_download.get_progress_bar(from_block, to_block)
+            progress_bar.set_description("Downloading")
+            with progress_bar:
+                block_download.download(
+                    self.download_dir,
+                    from_block,
+                    to_block,
+                    progress_bar=progress_bar
+                )
+        else:
+            block_download.download(self.download_dir, from_block, to_block)
 
         for i, block in enumerate(block_download.blocks):
             actual_md5 = block.calc_md5(self.download_dir)

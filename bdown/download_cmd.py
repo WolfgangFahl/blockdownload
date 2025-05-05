@@ -8,7 +8,9 @@ Created on 2025-05-05
 
 import argparse
 import os
+
 from tqdm import tqdm
+
 from bdown.download import BlockDownload
 
 
@@ -18,31 +20,44 @@ def main():
     )
     parser.add_argument("url", help="URL to download from")
     parser.add_argument("target", help="Target directory to store .part files")
-    parser.add_argument("--name", required=True, help="Name for the download session (used for .yaml control file)")
-    parser.add_argument("--blocksize", type=int, default=10, help="Block size (default: 10)")
-    parser.add_argument("--unit", choices=["KB", "MB", "GB"], default="MB", help="Block size unit (default: MB)")
+    parser.add_argument(
+        "--name",
+        required=True,
+        help="Name for the download session (used for .yaml control file)",
+    )
+    parser.add_argument(
+        "--blocksize", type=int, default=10, help="Block size (default: 10)"
+    )
+    parser.add_argument(
+        "--unit",
+        choices=["KB", "MB", "GB"],
+        default="MB",
+        help="Block size unit (default: MB)",
+    )
     parser.add_argument("--from-block", type=int, default=0, help="First block index")
     parser.add_argument("--to-block", type=int, help="Last block index (inclusive)")
-    parser.add_argument("--progress", action="store_true", help="Show tqdm progress bar")
+    parser.add_argument(
+        "--progress", action="store_true", help="Show tqdm progress bar"
+    )
 
     args = parser.parse_args()
     os.makedirs(args.target, exist_ok=True)
     yaml_path = os.path.join(args.target, f"{args.name}.yaml")
     if os.path.exists(yaml_path):
-        downloader=BlockDownload.ofYamlPath(yaml_path)
+        downloader = BlockDownload.ofYamlPath(yaml_path)
     else:
         downloader = BlockDownload(
-            url=args.url,
-            blocksize=args.blocksize,
-            unit=args.unit
+            url=args.url, blocksize=args.blocksize, unit=args.unit
         )
-        downloader.yaml_path=yaml_path
-
+        downloader.yaml_path = yaml_path
 
     if args.progress:
-        from_block, to_block, total_bytes = downloader.compute_total_bytes(args.from_block, args.to_block)
-        with tqdm(total=total_bytes, unit='B', unit_scale=True, desc="Downloading") as pbar:
-            downloader.download(args.target, from_block, to_block, progress=pbar.update)
+        from_block = args.from_block
+        to_block = args.to_block
+        progress_bar = downloader.get_progress_bar(from_block, to_block)
+        progress_bar.set_description("Downloading")
+        with progress_bar:
+            downloader.download(args.target, from_block, to_block, progress_bar=progress_bar)
     else:
         downloader.download(args.target, args.from_block, args.to_block)
 

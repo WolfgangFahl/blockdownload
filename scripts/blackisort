@@ -1,6 +1,6 @@
 #!/bin/bash
-# WF 2024-01-10
-for package in dpatch tests
+# WF 2025-05-05
+for package in bdown tests
 do
   isort $package/*.py
   black $package/*.py
