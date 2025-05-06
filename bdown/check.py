@@ -37,6 +37,7 @@ class BlockCheck:
         get or create a yaml file for the given path
         """
         yaml_path = path + ".yaml"
+        print(f"Processing {path}...")
         if os.path.exists(yaml_path):
             bd = BlockDownload.ofYamlPath(yaml_path)
         else:
@@ -58,6 +59,8 @@ class BlockCheck:
                     if not self.head_only:
                         block.md5 = block.calc_md5(os.path.dirname(path))
                     bd.blocks.append(block)
+                    desc=f"{block}"
+                    progress.set_description(desc)
                     progress.update(bd.blocksize_bytes)
             bd.yaml_path = yaml_path
             bd.save()
