@@ -4,7 +4,7 @@ Block-based file integrity checker and metadata generator.
 
 Usage:
   Generate .yaml:
-    check.py --create --blocksize 10 --unit MB data.jnl
+    check.py --create --blocksize 500 --unit MB data.jnl
 
   Compare two files:
     check.py file1 file2 [--head-only]
@@ -15,9 +15,8 @@ Author: wf
 
 import argparse
 import os
-from collections import Counter
 
-from bdown.download import Block, BlockDownload
+from bdown.download import Block, BlockDownload, Status, StatusSymbol
 
 
 class BlockCheck:
@@ -32,7 +31,7 @@ class BlockCheck:
         self.unit = unit
         self.head_only = head_only
         self.create = create
-        self.status_counter = Counter()
+        self.status = Status()
 
     def get_or_create_yaml(self, path):
         yaml_path = path + ".yaml"
@@ -52,6 +51,7 @@ class BlockCheck:
             with progress:
                 for index, start, end in bd.block_ranges(from_block, to_block):
                     block = Block(block=index, offset=start, path=os.path.basename(path))
+                    block.size = end - start + 1  # 🔧 critical for progress
                     block.md5_head = block.calc_md5(os.path.dirname(path), chunk_limit=1)
                     if not self.head_only:
                         block.md5 = block.calc_md5(os.path.dirname(path))
@@ -62,15 +62,9 @@ class BlockCheck:
         return bd
 
     def generate_yaml(self):
-        """
-        Handle --create mode.
-        """
         self.get_or_create_yaml(self.file1)
 
     def compare(self):
-        """
-        Compare blocks of two files via their metadata.
-        """
         bd1 = self.get_or_create_yaml(self.file1)
         bd2 = self.get_or_create_yaml(self.file2)
 
@@ -78,24 +72,36 @@ class BlockCheck:
         b2 = {b.block: b for b in bd2.blocks}
         common = sorted(set(b1.keys()) & set(b2.keys()))
 
-        print(f"Comparing {len(common)} blocks")
-        for i in common:
-            block1 = b1[i]
-            block2 = b2[i]
-            if self.head_only:
-                md5_1 = block1.md5_head
-                md5_2 = block2.md5_head
-            else:
-                md5_1 = block1.md5 or block1.md5_head
-                md5_2 = block2.md5 or block2.md5_head
-            offset_mb = block1.offset // (1024 * 1024)
-            if md5_1 == md5_2:
-                block1.status("✅", offset_mb, "MD5 match", self.status_counter, quiet=False)
-            else:
-                block1.status("❌", offset_mb, "MD5 mismatch", self.status_counter, quiet=False)
-                print(f"  file1: {md5_1}")
-                print(f"  file2: {md5_2}")
-        print("\nSummary:", dict(self.status_counter))
+        _, to_block, _ = bd1.compute_total_bytes(0)
+        progress = bd1.get_progress_bar(0, to_block)
+
+        with progress:
+            for i in common:
+                block1 = b1[i]
+                block2 = b2[i]
+                offset_mb = block1.offset // (1024 * 1024)
+
+                if self.head_only:
+                    md5_1 = block1.md5_head
+                    md5_2 = block2.md5_head
+                else:
+                    md5_1 = block1.md5 or block1.md5_head
+                    md5_2 = block2.md5 or block2.md5_head
+
+                if md5_1 == md5_2:
+                    symbol = StatusSymbol.SUCCESS
+                    message = "MD5 match"
+                else:
+                    symbol = StatusSymbol.FAIL
+                    message = "MD5 mismatch"
+
+                self.status.update(symbol, i)
+                quiet = symbol == StatusSymbol.SUCCESS
+                block1.status(symbol.value, offset_mb, message, self.status.symbol_blocks, quiet)
+                self.status.set_description(progress)
+                progress.update(block1.size)
+
+        print("\nFinal:", self.status.summary())
 
 
 def parse_args():
@@ -104,7 +110,7 @@ def parse_args():
     )
     parser.add_argument("file", nargs="+", help="File(s) to process (1=create, 2=compare)")
     parser.add_argument("--create", action="store_true", help="Generate .yaml for one file")
-    parser.add_argument("--blocksize", type=int, default=10, help="Block size (default: 10)")
+    parser.add_argument("--blocksize", type=int, default=500, help="Block size in units (default: 500)")
     parser.add_argument("--unit", choices=["KB", "MB", "GB"], default="MB", help="Block size unit")
     parser.add_argument("--head-only", action="store_true", help="Use md5_head only")
     return parser.parse_args()
@@ -126,7 +132,7 @@ def main():
     elif len(files) == 2:
         checker.compare()
     else:
-        print("Usage:\n  check.py --create file\n  check.py file1 file2 [--head-only]")
+        print("Usage:\n  dcheck.py --create file\n  check.py file1 file2 [--head-only]")
 
 
 if __name__ == "__main__":

@@ -14,6 +14,33 @@ from lodstorage.yamlable import lod_storable
 import requests
 from tqdm import tqdm
 
+from enum import Enum
+
+class StatusSymbol(Enum):
+    SUCCESS = "✅"
+    FAIL = "❌"
+    WARN = "⚠️"
+
+class Status:
+    """
+    Track block comparison results and provide symbolic summary.
+    """
+    def __init__(self):
+        self.symbol_blocks = {
+            symbol: set() for symbol in StatusSymbol
+        }
+
+    def update(self, symbol: StatusSymbol, index: int):
+        self.symbol_blocks[symbol].add(index)
+
+    def summary(self) -> str:
+        return " ".join(
+            f"{len(self.symbol_blocks[symbol])}{symbol.value}"
+            for symbol in StatusSymbol
+        )
+
+    def set_description(self, progress_bar):
+        progress_bar.set_description(self.summary())
 
 @lod_storable
 class Block:
