@@ -88,7 +88,9 @@ class BlockCheck:
                 self.status.update(symbol, i)
                 quiet = symbol == StatusSymbol.SUCCESS
                 block1.status(symbol.value, offset_mb, message, self.status.symbol_blocks, quiet)
-                progress.update(block1.size or 0)
+                # all blocks have the same blocksize except the last
+                # for progress display this is good enough
+                progress.update(bd1.blocksize_bytes)
                 self.status.set_description(progress)
 
         print("\nFinal:", self.status.summary())
