@@ -37,7 +37,7 @@ class BlockCheck:
         get or create a yaml file for the given path
         """
         yaml_path = path + ".yaml"
-        print(f"Processing {path}...")
+        print(f"Processing {path}... (file size: {os.path.getsize(path) / (1024**3):.2f} GB)")
         if os.path.exists(yaml_path):
             bd = BlockDownload.ofYamlPath(yaml_path)
         else:
@@ -59,12 +59,13 @@ class BlockCheck:
                     if not self.head_only:
                         block.md5 = block.calc_md5(os.path.dirname(path))
                     bd.blocks.append(block)
-                    desc=f"{block}"
+                    desc = f"Block {index}/{to_block} ({start/(1024**3):.2f}-{end/(1024**3):.2f} GB)"
                     progress.set_description(desc)
                     progress.update(bd.blocksize_bytes)
             bd.yaml_path = yaml_path
             bd.save()
-            print(f"{yaml_path} created with ")
+            msg=f"{yaml_path} created with {len(bd.blocks)} blocks ({sum(b.size for b in bd.blocks)/(1024**3):.2f} GB processed)"
+            print(msg)
         return bd
 
     def generate_yaml(self):
