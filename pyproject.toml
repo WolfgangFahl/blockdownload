@@ -52,5 +52,4 @@ only-include = ["bdown"]
 
 [project.scripts]
 dcheck = "bdown.check:main"
-dyaml = "bdown.dyaml:main"
 blockdownload="bdown.download_cmd:main"
