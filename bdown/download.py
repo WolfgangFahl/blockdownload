@@ -124,7 +124,6 @@ class Block:
             print(f"[{self.index:3}] {offset_mb:7,} MB  {symbol}  {message}")
 
 
-
     @classmethod
     def ofResponse(
         cls,

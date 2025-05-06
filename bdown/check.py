@@ -20,6 +20,9 @@ from bdown.download import Block, BlockDownload, Status, StatusSymbol
 
 
 class BlockCheck:
+    """
+    check downloaded blocks
+    """
     def __init__(self, file1, file2=None, blocksize=500, unit="MB", head_only=False, create=False):
         self.file1 = os.path.abspath(file1)
         self.file2 = os.path.abspath(file2) if file2 else None
@@ -30,6 +33,9 @@ class BlockCheck:
         self.status = Status()
 
     def get_or_create_yaml(self, path):
+        """
+        get or create a yaml file for the given path
+        """
         yaml_path = path + ".yaml"
         if os.path.exists(yaml_path):
             bd = BlockDownload.ofYamlPath(yaml_path)
@@ -52,9 +58,10 @@ class BlockCheck:
                     if not self.head_only:
                         block.md5 = block.calc_md5(os.path.dirname(path))
                     bd.blocks.append(block)
-                    progress.update(1)
+                    progress.update(bd.blocksize_bytes)
             bd.yaml_path = yaml_path
             bd.save()
+            print(f"{yaml_path} created with ")
         return bd
 
     def generate_yaml(self):
@@ -77,21 +84,22 @@ class BlockCheck:
             for i in common:
                 block1 = b1[i]
                 block2 = b2[i]
-                offset_mb = block1.offset // (1024 * 1024)
 
-                md5_1 = block1.md5_head if self.head_only else block1.md5 or block1.md5_head
-                md5_2 = block2.md5_head if self.head_only else block2.md5 or block2.md5_head
+                md5_1 = block1.md5_head if self.head_only else block1.md5
+                md5_2 = block2.md5_head if self.head_only else block2.md5
+                if md5_1 is None or md5_2 is None:
+                    symbol = StatusSymbol.WARN
+                elif md5_1 == md5_2:
+                    symbol = StatusSymbol.SUCCESS
+                else:
+                    symbol = StatusSymbol.FAIL
 
                 symbol = StatusSymbol.SUCCESS if md5_1 == md5_2 else StatusSymbol.FAIL
-                message = "MD5 match" if symbol == StatusSymbol.SUCCESS else "MD5 mismatch"
-
                 self.status.update(symbol, i)
-                quiet = symbol == StatusSymbol.SUCCESS
-                block1.status(symbol.value, offset_mb, message, self.status.symbol_blocks, quiet)
                 # all blocks have the same blocksize except the last
                 # for progress display this is good enough
-                progress.update(bd1.blocksize_bytes)
                 self.status.set_description(progress)
+                progress.update(bd1.blocksize_bytes)
 
         print("\nFinal:", self.status.summary())
 
