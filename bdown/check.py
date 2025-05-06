@@ -20,10 +20,6 @@ from bdown.download import Block, BlockDownload, Status, StatusSymbol
 
 
 class BlockCheck:
-    """
-    Unified block-level checker and metadata generator.
-    """
-
     def __init__(self, file1, file2=None, blocksize=500, unit="MB", head_only=False, create=False):
         self.file1 = os.path.abspath(file1)
         self.file2 = os.path.abspath(file2) if file2 else None
@@ -51,7 +47,7 @@ class BlockCheck:
             with progress:
                 for index, start, end in bd.block_ranges(from_block, to_block):
                     block = Block(block=index, offset=start, path=os.path.basename(path))
-                    block.size = end - start + 1  # 🔧 critical for progress
+                    block.size = end - start + 1
                     block.md5_head = block.calc_md5(os.path.dirname(path), chunk_limit=1)
                     if not self.head_only:
                         block.md5 = block.calc_md5(os.path.dirname(path))
@@ -71,6 +67,8 @@ class BlockCheck:
         b1 = {b.block: b for b in bd1.blocks}
         b2 = {b.block: b for b in bd2.blocks}
         common = sorted(set(b1.keys()) & set(b2.keys()))
+        if not common:
+            return
 
         _, to_block, _ = bd1.compute_total_bytes(0)
         progress = bd1.get_progress_bar(0, to_block)
@@ -81,25 +79,17 @@ class BlockCheck:
                 block2 = b2[i]
                 offset_mb = block1.offset // (1024 * 1024)
 
-                if self.head_only:
-                    md5_1 = block1.md5_head
-                    md5_2 = block2.md5_head
-                else:
-                    md5_1 = block1.md5 or block1.md5_head
-                    md5_2 = block2.md5 or block2.md5_head
+                md5_1 = block1.md5_head if self.head_only else block1.md5 or block1.md5_head
+                md5_2 = block2.md5_head if self.head_only else block2.md5 or block2.md5_head
 
-                if md5_1 == md5_2:
-                    symbol = StatusSymbol.SUCCESS
-                    message = "MD5 match"
-                else:
-                    symbol = StatusSymbol.FAIL
-                    message = "MD5 mismatch"
+                symbol = StatusSymbol.SUCCESS if md5_1 == md5_2 else StatusSymbol.FAIL
+                message = "MD5 match" if symbol == StatusSymbol.SUCCESS else "MD5 mismatch"
 
                 self.status.update(symbol, i)
                 quiet = symbol == StatusSymbol.SUCCESS
                 block1.status(symbol.value, offset_mb, message, self.status.symbol_blocks, quiet)
+                progress.update(block1.size or 0)
                 self.status.set_description(progress)
-                progress.update(block1.size)
 
         print("\nFinal:", self.status.summary())
 
@@ -132,7 +122,7 @@ def main():
     elif len(files) == 2:
         checker.compare()
     else:
-        print("Usage:\n  dcheck.py --create file\n  check.py file1 file2 [--head-only]")
+        print("Usage:\n  check.py --create file\n  check.py file1 file2 [--head-only]")
 
 
 if __name__ == "__main__":
