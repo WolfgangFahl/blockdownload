@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-Command-line tool to generate .yaml metadata files for block-based file verification.
+Block-level metadata generator and future comparison tool.
 
-This script uses the existing BlockDownload and Block APIs to compute and store
-md5_head and optionally full md5 for each block of a given file.
+Usage:
+    check.py --create --blocksize 10 --unit MB data.jnl
+
+Creates a BlockDownload-compatible .yaml metadata file for block-wise integrity verification.
 
 Created on 2025-05-06
-
-@author: wf
+Author: wf
 """
 
 import argparse
@@ -16,54 +17,75 @@ import os
 from bdown.download import BlockDownload, Block
 
 
-def create_yaml(file_path, blocksize, unit, head_only):
+class DYaml:
     """
-    Create a YAML metadata file with BlockDownload and Block entries for a given file.
-
-    Args:
-        file_path (str): Path to the file to analyze.
-        blocksize (int): Block size value (unit specified separately).
-        unit (str): Unit of block size, must be 'KB', 'MB', or 'GB'.
-        head_only (bool): If True, only calculate md5_head, skip full md5.
+    YAML metadata generator for block-based file verification using BlockDownload.
     """
-    name = os.path.basename(file_path)
-    size = os.path.getsize(file_path)
-    base_path = os.path.dirname(file_path)
-    part_path = os.path.basename(file_path)
 
-    bd = BlockDownload(name=name, url=file_path, blocksize=blocksize, unit=unit)
-    bd.size = size
+    def __init__(self, file_path, blocksize, unit, head_only):
+        """
+        Initialize the generator with the given configuration.
 
-    for index, start, end in bd.block_ranges(0, None):
-        block = Block(block=index, offset=start, path=part_path)
-        block.md5_head = block.calc_md5(base_path, chunk_limit=1)
-        if not head_only:
-            block.md5 = block.calc_md5(base_path, chunk_limit=None)
-        bd.blocks.append(block)
+        Args:
+            file_path (str): Path to the file to analyze.
+            blocksize (int): Block size in unit multiples.
+            unit (str): Unit for block size ('KB', 'MB', 'GB').
+            head_only (bool): Whether to only calculate md5_head.
+        """
+        self.file_path = os.path.abspath(file_path)
+        self.blocksize = blocksize
+        self.unit = unit
+        self.head_only = head_only
+        self.file_size = os.path.getsize(self.file_path)
+        self.base_path = os.path.dirname(self.file_path)
+        self.part_path = os.path.basename(self.file_path)
 
-    yaml_path = file_path + ".yaml"
-    bd.save_to_yaml_file(yaml_path)
-    print(f"Wrote {yaml_path} with {len(bd.blocks)} blocks.")
+    def create(self):
+        """
+        Generate a BlockDownload .yaml file by iterating over block_ranges.
+        """
+        bd = BlockDownload(
+            name=self.part_path,
+            url=self.file_path,
+            blocksize=self.blocksize,
+            unit=self.unit
+        )
+        bd.size = self.file_size
+
+        from_block = 0
+        _, to_block, _ = bd.compute_total_bytes(from_block)
+
+        for index, start, end in bd.block_ranges(from_block, to_block):
+            block = Block(block=index, offset=start, path=self.part_path)
+            block.md5_head = block.calc_md5(self.base_path, chunk_limit=1)
+            if not self.head_only:
+                block.md5 = block.calc_md5(self.base_path)
+            bd.blocks.append(block)
+
+        yaml_path = self.file_path + ".yaml"
+        bd.save_to_yaml_file(yaml_path)
+        print(f"Wrote {yaml_path} with {len(bd.blocks)} blocks.")
 
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Create .yaml metadata for block-based file verification."
+        description="Block integrity checker and .yaml metadata generator."
     )
-    parser.add_argument("file", help="Path to the file to analyze")
+    parser.add_argument("file", help="File to process")
     parser.add_argument("--create", action="store_true", help="Generate .yaml metadata for the file")
     parser.add_argument("--blocksize", type=int, default=10, help="Block size (default: 10)")
-    parser.add_argument("--unit", choices=["KB", "MB", "GB"], default="MB", help="Unit for block size (default: MB)")
-    parser.add_argument("--head-only", action="store_true", help="Only compute md5_head, skip full md5")
+    parser.add_argument("--unit", choices=["KB", "MB", "GB"], default="MB", help="Unit for block size")
+    parser.add_argument("--head-only", action="store_true", help="Only compute md5_head")
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
     if args.create:
-        create_yaml(args.file, args.blocksize, args.unit, args.head_only)
+        dyaml = DYaml(args.file, args.blocksize, args.unit, args.head_only)
+        dyaml.create()
     else:
-        print("Error: --create required for metadata generation. Comparison not yet implemented.")
+        print("Error: --create required. Comparison mode not yet implemented.")
 
 
 if __name__ == "__main__":
