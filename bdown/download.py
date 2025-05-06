@@ -3,16 +3,17 @@ Created on 2025-05-05
 
 @author: wf
 """
-from tqdm import tqdm
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import field
 import hashlib
 import os
-from dataclasses import field
+from threading import Lock
 from typing import List, Tuple
 
-import requests
 from lodstorage.yamlable import lod_storable
-from concurrent.futures import ThreadPoolExecutor
-from threading import Lock
+import requests
+from tqdm import tqdm
+
 
 @lod_storable
 class Block:
@@ -50,6 +51,51 @@ class Block:
                     break
 
         return hash_md5.hexdigest()
+
+    def read_block(self, f):
+        """
+        Read this block from an open binary file.
+
+        Args:
+            f: File handle opened in binary mode.
+
+        Returns:
+            bytes: Block data.
+        """
+        f.seek(self.offset)
+        data = f.read(self.size)
+        return data
+
+    @staticmethod
+    def is_zero_block(data):
+        """
+        Check if the block data consists entirely of zero bytes.
+
+        Args:
+            data (bytes): Data read from a block.
+
+        Returns:
+            bool: True if all bytes are zero, False otherwise.
+        """
+        all_zero = all(b == 0 for b in data)
+        result = all_zero
+        return result
+
+    def status(self, symbol, offset_mb, message, counter, quiet):
+        """
+        Report and count the status of an operation on this block.
+
+        Args:
+            symbol (str): Status symbol (e.g., ✅, ❌).
+            offset_mb (int): Block offset in megabytes.
+            message (str): Message to log.
+            counter (Counter): Counter to update.
+            quiet (bool): Whether to suppress output.
+        """
+        counter[symbol] += 1
+        if not quiet:
+            print(f"[{self.index:3}] {offset_mb:7,} MB  {symbol}  {message}")
+
 
 
     @classmethod
