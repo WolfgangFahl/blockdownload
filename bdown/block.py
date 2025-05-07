@@ -56,8 +56,8 @@ class Block:
     block: int
     path: str
     offset: int
-    md5: str = None  # full md5 hash
-    md5_head: str = None  # hash of first chunk
+    md5: str = ""  # full md5 hash
+    md5_head: str = "" # hash of first chunk
 
     def calc_md5(self, base_path: str, chunk_size: int = 8192, chunk_limit: int = None, progress_bar=None, seek_to_offset: bool = False) -> str:
         """
@@ -105,6 +105,36 @@ class Block:
         f.seek(self.offset)
         data = f.read(self.size)
         return data
+
+    def copy_to(self, parts_dir: str, output_path: str, chunk_size:int=1024*1024) -> int:
+        """
+        Copy block data from part file to the correct offset in target file
+
+        Args:
+            parts_dir: Directory containing part files
+            output_path: Path to output file where block will be copied
+            chunk_size:
+
+        Returns:
+            Number of bytes copied
+        """
+        part_path = os.path.join(parts_dir, self.path)
+        bytes_copied = 0
+
+        # Write to the correct offset in target file
+        with open(part_path, 'rb') as part_file:
+            with open(output_path, 'r+b') as out_file:
+                out_file.seek(self.offset)
+
+                # Read and write in chunks
+                while True:
+                    chunk = part_file.read(chunk_size)
+                    if not chunk:
+                        break
+                    out_file.write(chunk)
+                    bytes_copied += len(chunk)
+
+        return bytes_copied
 
     @staticmethod
     def is_zero_block(data):

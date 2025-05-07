@@ -7,11 +7,63 @@ Created on 2025-05-05
 """
 
 import argparse
+from argparse import Namespace
 import os
-
 
 from bdown.download import BlockDownload
 
+class BlockDownloadWorker:
+    """
+    command line interface options for block download
+    """
+    def __init__(self,downloader:BlockDownload,args:Namespace):
+        self.downloader=downloader
+        self.args=args
+        self.from_block = args.from_block
+        self.to_block = args.to_block
+        if args.progress:
+            self.progress_bar = downloader.get_progress_bar(from_block=self.from_block, to_block=self.to_block)
+        else:
+            self.progress_bar=None
+
+    def work_with_progress(self):
+        if self.args.progress:
+            with self.progress_bar:
+                self.work()
+        else:
+            self.work()
+
+    def work(self):
+        if self.need_download:
+            if self.progress_bar:
+                self.progress_bar.set_description("Downloading")
+            self.downloader.download(
+                target=self.args.target,
+                from_block=self.from_block,
+                to_block=self.to_block,
+                boost=self.args.boost,
+                progress_bar=self.progress_bar
+            )
+        if self.args.output:
+            # Check if output file exists and force flag is not set
+            if os.path.exists(self.args.output) and not self.args.force:
+                print(f"Error: Output file {self.args.output} already exists. Use --force to overwrite.")
+                return
+
+            # Update progress bar for reassembly if it exists
+            if self.progress_bar:
+                # Reset the progress to start from zero
+                self.progress_bar.reset()
+                self.progress_bar.set_description("Creating target")
+
+            # Reassemble blocks into output file
+            self.downloader.reassemble(
+                parts_dir=self.args.target,
+                output_path=self.args.output,
+                progress_bar=self.progress_bar
+            )
+
+            print(f"File reassembled successfully: {self.args.output}")
 
 def main():
     parser = argparse.ArgumentParser(
@@ -39,41 +91,30 @@ def main():
     parser.add_argument(
         "--progress", action="store_true", help="Show tqdm progress bar"
     )
+    parser.add_argument("--yaml", help="Path to the YAML metadata file (for standalone reassembly)")
+    parser.add_argument("--force", action="store_true", help="Overwrite output file if it exists")
+    parser.add_argument("--output", help="Path where the final target file will be saved")
 
     args = parser.parse_args()
     os.makedirs(args.target, exist_ok=True)
-    yaml_path = os.path.join(args.target, f"{args.name}.yaml")
+    if args.yaml:
+        yaml_path=args.yaml
+    else:
+        yaml_path = os.path.join(args.target, f"{args.name}.yaml")
     if os.path.exists(yaml_path):
         downloader = BlockDownload.ofYamlPath(yaml_path)
+        need_download=False
     else:
         downloader = BlockDownload(
             name=args.name,
             url=args.url,
             blocksize=args.blocksize, unit=args.unit
         )
+        need_download=True
     downloader.yaml_path = yaml_path
-
-    if args.progress:
-        from_block = args.from_block
-        to_block = args.to_block
-        progress_bar = downloader.get_progress_bar(from_block=from_block, to_block=to_block)
-        progress_bar.set_description("Downloading")
-        with progress_bar:
-            downloader.download(
-                target=args.target,
-                from_block=from_block,
-                to_block=to_block,
-                boost=args.boost,
-                progress_bar=progress_bar
-            )
-    else:
-        downloader.download(
-            target=args.target,
-            from_block=args.from_block,
-            to_block=args.to_block,
-            boost=args.boost
-        )
-
+    worker=BlockDownloadWorker(downloader,args)
+    worker.need_download=need_download
+    worker.work_with_progress()
 
 if __name__ == "__main__":
     main()

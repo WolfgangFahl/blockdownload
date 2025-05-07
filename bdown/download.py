@@ -6,7 +6,6 @@ Created on 2025-05-05
 from concurrent.futures import ThreadPoolExecutor
 import os
 from threading import Lock
-from typing import List, Tuple
 
 from lodstorage.yamlable import lod_storable
 import requests
@@ -77,54 +76,6 @@ class BlockDownload(BlockFiddler):
         response.raise_for_status()
         file_size=int(response.headers.get("Content-Length", 0))
         return file_size
-
-    def block_ranges(
-        self, from_block: int, to_block: int
-    ) -> List[Tuple[int, int, int]]:
-        """
-        Generate a list of (index, start, end) tuples for the given block range.
-
-        Args:
-            from_block: Index of first block.
-            to_block: Index of last block (inclusive).
-
-        Returns:
-            List of (index, start, end).
-        """
-        if self.size is None:
-            self.size = self._get_remote_file_size()
-        result = []
-        block_size = self.blocksize_bytes
-        for index in range(from_block, to_block + 1):
-            start = index * block_size
-            end = min(start + block_size - 1, self.size - 1)
-            result.append((index, start, end))
-        return result
-
-    def compute_total_bytes(
-        self, from_block: int, to_block: int=None
-    ) -> Tuple[int, int, int]:
-        """
-        Compute the total number of bytes to download for a block range.
-
-        Args:
-            from_block: First block index.
-            to_block: Last block index (inclusive), or None for all blocks.
-
-        Returns:
-            Tuple of (from_block, to_block, total_bytes).
-        """
-        if self.size is None:
-            self.size = self._get_remote_file_size()
-        total_blocks = (self.size + self.blocksize_bytes - 1) // self.blocksize_bytes
-        if to_block is None or to_block >= total_blocks:
-            to_block = total_blocks - 1
-
-        total_bytes = 0
-        for _, start, end in self.block_ranges(from_block, to_block):
-            total_bytes += end - start + 1
-
-        return from_block, to_block, total_bytes
 
     def download(
         self,

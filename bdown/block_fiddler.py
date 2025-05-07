@@ -4,9 +4,10 @@ Created on 2025-05-06
 @author: wf
 """
 from bdown.block import Block
-from typing import List
+from typing import List, Tuple
 from dataclasses import dataclass,field
 from tqdm import tqdm
+import os
 
 @dataclass
 class BlockFiddler:
@@ -117,6 +118,49 @@ class BlockFiddler:
         total_bytes = full_blocks * self.blocksize_bytes + last_block_size
         return total_bytes
 
+    def block_ranges(
+        self, from_block: int, to_block: int
+    ) -> List[Tuple[int, int, int]]:
+        """
+        Generate a list of (index, start, end) tuples for the given block range.
+
+        Args:
+            from_block: Index of first block.
+            to_block: Index of last block (inclusive).
+
+        Returns:
+            List of (index, start, end).
+        """
+        result = []
+        block_size = self.blocksize_bytes
+        for index in range(from_block, to_block + 1):
+            start = index * block_size
+            end = min(start + block_size - 1, self.size - 1)
+            result.append((index, start, end))
+        return result
+
+    def compute_total_bytes(
+        self, from_block: int, to_block: int=None
+    ) -> Tuple[int, int, int]:
+        """
+        Compute the total number of bytes to download for a block range.
+
+        Args:
+            from_block: First block index.
+            to_block: Last block index (inclusive), or None for all blocks.
+
+        Returns:
+            Tuple of (from_block, to_block, total_bytes).
+        """
+        total_blocks = (self.size + self.blocksize_bytes - 1) // self.blocksize_bytes
+        if to_block is None or to_block >= total_blocks:
+            to_block = total_blocks - 1
+
+        total_bytes = 0
+        for _, start, end in self.block_ranges(from_block, to_block):
+            total_bytes += end - start + 1
+
+        return from_block, to_block, total_bytes
 
     def get_progress_bar(self, from_block: int, to_block: int = None):
         total_bytes = self.calc_block_range_size_bytes(from_block, to_block)
@@ -124,3 +168,34 @@ class BlockFiddler:
         bar.set_description(f"Processing {self.name}")
         bar.update(0)
         return bar
+
+    def reassemble(self, parts_dir: str, output_path: str, progress_bar=None, force=False):
+        """
+        Reassemble a complete file from my blocks
+
+        Args:
+            parts_dir: Directory containing part files
+            output_path: Path where reassembled file will be saved
+            progress_bar: Optional progress bar
+            force: If True, overwrite existing file without warning
+        """
+        # Check if output file exists
+        if os.path.exists(output_path) and not force:
+            raise FileExistsError(f"Output file {output_path} already exists. Please specify a different path, use force=True, or remove the existing file first.")
+
+        # Create empty output file of the correct size
+        with open(output_path, 'wb') as f:
+            f.truncate(self.size)
+
+        # Sort blocks by index to ensure proper order
+        self.sort_blocks()
+        total=0
+        # Copy each block to the output file
+        for block in self.blocks:
+            block_size=block.copy_to(parts_dir, output_path)
+            total+=block_size
+            if progress_bar:
+                progress_bar.update(block_size)
+
+        total_str=self.format_size(total)
+        print(f"created {output_path} - {total_str}")

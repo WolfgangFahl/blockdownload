@@ -1,0 +1,29 @@
+#!/bin/bash
+# WF 2025-05-07
+# Debian 12 blockdownload test
+url=https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-12.10.0-amd64-netinst.iso
+name=debian12
+output_path=/tmp/$name
+output_file=$output_path/$name.iso
+
+OS_TYPE=$(uname -a)
+MD5_SUM=md5sum
+
+case "$OS_TYPE" in
+  *Darwin*)
+    # macOS
+    MD5_SUM=gmd5sum;;
+esac
+
+blockdownload \
+  $url \
+  $output_path \
+  --name $name \
+  --blocksize 32 \
+  --unit MB \
+  --boost 1 \
+  --progress \
+  --output $output_file
+
+$MD5_SUM "$output_file" > $output_path/$name.md5
+cat $output_path/$name.md5

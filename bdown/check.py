@@ -76,7 +76,7 @@ class BlockCheck(BlockFiddler):
                     block_range = self.format_block_index_range(index, to_block)
                     from_size = self.format_size(start, unit="GB",show_unit=False)
                     to_size=self.format_size(end,unit="GB")
-                    desc = f"Block {block_range} {from_size}-{to_size}"
+                    desc = f"MD5 {block_range} {from_size}-{to_size}"
                     progress.set_description(desc)
                     if self.head_only:
                         progress.update(bd.blocksize_bytes)
@@ -133,6 +133,7 @@ class BlockCheck(BlockFiddler):
         b2 = {b.block: b for b in bd2.blocks}
         common = sorted(set(b1.keys()) & set(b2.keys()))
         if not common:
+            print("⚠️  No common block indices between the two BlockDownload instances.")
             return
 
         _, to_block, _ = bd1.compute_total_bytes(0)
