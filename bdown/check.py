@@ -16,10 +16,11 @@ Author: wf
 import argparse
 import os
 
-from bdown.download import Block, BlockDownload, Status, StatusSymbol
+from bdown.download import BlockDownload
+from bdown.block import Block, Status, StatusSymbol
+from bdown.block_fiddler import BlockFiddler
 
-
-class BlockCheck:
+class BlockCheck(BlockFiddler):
     """
     check downloaded blocks
     """
