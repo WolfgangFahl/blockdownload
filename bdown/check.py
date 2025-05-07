@@ -125,7 +125,9 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Check block-level integrity of files using .yaml metadata."
     )
-    parser.add_argument("url", help="Download URL to check against")
+    parser.add_argument("--url",
+        required=True,
+        help="Download URL to check against")
     parser.add_argument("file", nargs="+", help="File(s) to process (1=create, 2=compare)")
     parser.add_argument("--create", action="store_true", help="Generate .yaml for one file")
     parser.add_argument("--blocksize", type=int, default=500, help="Block size in units (default: 500)")
@@ -137,6 +139,7 @@ def main():
     args = parse_args()
     files = args.file
     checker = BlockCheck(
+        name=os.path.basename(files[0]),
         file1=files[0],
         file2=files[1] if len(files) == 2 else None,
         blocksize=args.blocksize,
