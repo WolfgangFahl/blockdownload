@@ -51,6 +51,12 @@ class BlockFiddler:
             last_block_size=self.size -same_size_total
         return last_block_size
 
+    def sort_blocks(self):
+        """
+        Sort the blocks list by block index
+        """
+        self.blocks.sort(key=lambda b: b.block)
+
     def format_size(self, size_bytes, unit=None, decimals=2, show_unit:bool=True):
         """
         Format byte size to appropriate units

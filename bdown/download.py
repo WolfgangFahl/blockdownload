@@ -210,5 +210,6 @@ class BlockDownload(BlockFiddler):
                 self.blocks[index] = block
             else:
                 self.blocks.append(block)
+            self.sort_blocks()
             self.save()
         self.update_progress(progress_bar, -(index+1))

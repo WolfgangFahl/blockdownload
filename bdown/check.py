@@ -81,6 +81,7 @@ class BlockCheck(BlockFiddler):
                     if self.head_only:
                         progress.update(bd.blocksize_bytes)
             bd.yaml_path = yaml_path
+            bd.sort_blocks()
             bd.save()
             formatted_size = bd.format_size(bd.size)
             msg = f"{yaml_path} created with {bd.total_blocks} blocks ({formatted_size} processed)"

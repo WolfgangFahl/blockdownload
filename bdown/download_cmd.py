@@ -9,7 +9,6 @@ Created on 2025-05-05
 import argparse
 import os
 
-from tqdm import tqdm
 
 from bdown.download import BlockDownload
 
