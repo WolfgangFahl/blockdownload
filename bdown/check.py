@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
+#!/usr/bin/env python3
 """
-Block-based file integrity checker and metadata generator.
+Block-based file integrity checker and
+metadata generator to be used with blockdownload
 
 Usage:
-  Generate .yaml:
-    check.py --create --blocksize 500 --unit MB data.jnl
+  Generate .yaml metadata:
+    dcheck --url URL --create [--blocksize SIZE] [--unit UNIT] file
 
   Compare two files:
-    check.py file1 file2 [--head-only]
+    dcheck --url URL file1 file2 [--head-only]
+
+  Compare two .yaml files:
+    dcheck --url URL file1.yaml file2.yaml [--head-only]
 
 Created on 2025-05-06
 Author: wf
@@ -84,10 +89,44 @@ class BlockCheck(BlockFiddler):
     def generate_yaml(self,url:str):
         self.get_or_create_yaml(path=self.file1,url=url)
 
-    def compare(self,url):
-        bd1 = self.get_or_create_yaml(self.file1,url=url)
-        bd2 = self.get_or_create_yaml(self.file2,url=url)
 
+    def compare(self, url=None):
+        """
+        Compare two files or two YAML files
+
+        Args:
+            url: Optional URL for reference
+        """
+        # Check if both files are YAML files
+        if self.file1.endswith('.yaml') and self.file2.endswith('.yaml'):
+            # Compare two YAML files directly
+            self.compare_yaml_files(self.file1, self.file2)
+        else:
+            # Original comparison logic for regular files
+            bd1 = self.get_or_create_yaml(self.file1, url=url)
+            bd2 = self.get_or_create_yaml(self.file2, url=url)
+            self.compare_block_downloads(bd1, bd2)
+
+    def compare_yaml_files(self, yaml_file1, yaml_file2):
+        """
+        Compare two YAML files directly
+
+        Args:
+            yaml_file1: Path to first YAML file
+            yaml_file2: Path to second YAML file
+        """
+        bd1 = BlockDownload.ofYamlPath(yaml_file1)
+        bd2 = BlockDownload.ofYamlPath(yaml_file2)
+        self.compare_block_downloads(bd1, bd2)
+
+    def compare_block_downloads(self, bd1, bd2):
+        """
+        Compare two BlockDownload instances
+
+        Args:
+            bd1: First BlockDownload instance
+            bd2: Second BlockDownload instance
+        """
         b1 = {b.block: b for b in bd1.blocks}
         b2 = {b.block: b for b in bd2.blocks}
         common = sorted(set(b1.keys()) & set(b2.keys()))
@@ -104,6 +143,7 @@ class BlockCheck(BlockFiddler):
 
                 md5_1 = block1.md5_head if self.head_only else block1.md5
                 md5_2 = block2.md5_head if self.head_only else block2.md5
+
                 if md5_1 is None or md5_2 is None:
                     symbol = StatusSymbol.WARN
                 elif md5_1 == md5_2:
@@ -111,10 +151,7 @@ class BlockCheck(BlockFiddler):
                 else:
                     symbol = StatusSymbol.FAIL
 
-                symbol = StatusSymbol.SUCCESS if md5_1 == md5_2 else StatusSymbol.FAIL
                 self.status.update(symbol, i)
-                # all blocks have the same blocksize except the last
-                # for progress display this is good enough
                 self.status.set_description(progress)
                 progress.update(bd1.blocksize_bytes)
 
@@ -123,12 +160,12 @@ class BlockCheck(BlockFiddler):
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Check block-level integrity of files using .yaml metadata."
+        description="Check block-level integrity of files downloaded using blockdownload .yaml metadata."
     )
     parser.add_argument("--url",
         required=True,
         help="Download URL to check against")
-    parser.add_argument("file", nargs="+", help="File(s) to process (1=create, 2=compare)")
+    parser.add_argument("file", nargs="+", help="File(s) to process (1=create, 2=compare - either by creating yamls for two downloads or by supplying two yaml files)")
     parser.add_argument("--create", action="store_true", help="Generate .yaml for one file")
     parser.add_argument("--blocksize", type=int, default=500, help="Block size in units (default: 500)")
     parser.add_argument("--unit", choices=["KB", "MB", "GB"], default="MB", help="Block size unit")
