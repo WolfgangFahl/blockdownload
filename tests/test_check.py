@@ -36,11 +36,12 @@ class TestBlockCheck(BaseBlockTest):
         if not os.path.exists(iso_yaml_path):
             # Test YAML generation
             check = BlockCheck(
+                name=self.name,
                 file1=self.iso_path,
                 blocksize=self.blocksize,
                 unit=self.unit,
                 head_only=True,
                 create=True
             )
-            check.generate_yaml()
+            check.generate_yaml(self.url)
             self.assertTrue(os.path.exists(iso_yaml_path), "YAML file should be created")

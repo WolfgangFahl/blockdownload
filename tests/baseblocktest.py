@@ -30,5 +30,5 @@ class BaseBlockTest(BaseTest):
         os.makedirs(self.download_dir, exist_ok=True)
         self.yaml_path = os.path.join(self.download_dir, f"{self.name}.yaml")
         self.url = "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-12.10.0-amd64-netinst.iso"
-        self.blocksize = 512
-        self.unit = "KB"
+        self.blocksize = 32
+        self.unit = "MB"

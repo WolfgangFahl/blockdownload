@@ -12,30 +12,35 @@ Usage:
 Created on 2025-05-06
 Author: wf
 """
-
+from dataclasses import field
 import argparse
 import os
-
+from dataclasses import dataclass
 from bdown.download import BlockDownload
 from bdown.block import Block, Status, StatusSymbol
 from bdown.block_fiddler import BlockFiddler
 
+@dataclass
 class BlockCheck(BlockFiddler):
     """
     check downloaded blocks
     """
-    def __init__(self, file1, file2=None, blocksize=500, unit="MB", head_only=False, create=False):
-        self.file1 = os.path.abspath(file1)
-        self.file2 = os.path.abspath(file2) if file2 else None
-        self.blocksize = blocksize
-        self.unit = unit
-        self.head_only = head_only
-        self.create = create
-        self.status = Status()
+    file1: str = None
+    file2: str = None
+    head_only: bool = False
+    create: bool = False
+    status: Status = field(default_factory=Status)
 
-    def get_or_create_yaml(self, path):
+    def __post_init__(self):
+        self.file1 = os.path.abspath(self.file1)
+        if self.file2:
+            self.file2 = os.path.abspath(self.file2)
+        self.size = os.path.getsize(self.file1)
+        super().__post_init__()
+
+    def get_or_create_yaml(self, path:str, url:str):
         """
-        get or create a yaml file for the given path
+        get or create a yaml file for the given path and url
         """
         yaml_path = path + ".yaml"
         print(f"Processing {path}... (file size: {os.path.getsize(path) / (1024**3):.2f} GB)")
@@ -44,11 +49,14 @@ class BlockCheck(BlockFiddler):
         else:
             bd = BlockDownload(
                 name=os.path.basename(path),
-                url=path,
+                url=url,
                 blocksize=self.blocksize,
                 unit=self.unit
             )
-            bd.size = os.path.getsize(path)
+            file_size = os.path.getsize(path)
+            if not file_size==bd.size:
+                msg=f"file size mismatch file:{file_size} != download url {bd.size}"
+                raise Exception(msg)
             from_block = 0
             _, to_block, _ = bd.compute_total_bytes(from_block)
             progress = bd.get_progress_bar(from_block, to_block)
@@ -60,17 +68,21 @@ class BlockCheck(BlockFiddler):
                     if not self.head_only:
                         block.md5 = block.calc_md5(os.path.dirname(path))
                     bd.blocks.append(block)
-                    desc = f"Block {index}/{to_block} ({start/(1024**3):.2f}-{end/(1024**3):.2f} GB)"
+                    block_range = self.format_block_index_range(index, to_block)
+                    from_size = self.format_size(start, unit="GB",show_unit=False)
+                    to_size=self.format_size(end,unit="GB")
+                    desc = f"Block {block_range} {from_size}-{to_size}"
                     progress.set_description(desc)
                     progress.update(bd.blocksize_bytes)
             bd.yaml_path = yaml_path
             bd.save()
-            msg=f"{yaml_path} created with {len(bd.blocks)} blocks ({sum(b.size for b in bd.blocks)/(1024**3):.2f} GB processed)"
+            formatted_size = bd.format_size(bd.size)
+            msg = f"{yaml_path} created with {bd.total_blocks} blocks ({formatted_size} processed)"
             print(msg)
         return bd
 
-    def generate_yaml(self):
-        self.get_or_create_yaml(self.file1)
+    def generate_yaml(self,url:str):
+        self.get_or_create_yaml(path=self.file1,url=url)
 
     def compare(self):
         bd1 = self.get_or_create_yaml(self.file1)
@@ -113,13 +125,13 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Check block-level integrity of files using .yaml metadata."
     )
+    parser.add_argument("url", help="Download URL to check against")
     parser.add_argument("file", nargs="+", help="File(s) to process (1=create, 2=compare)")
     parser.add_argument("--create", action="store_true", help="Generate .yaml for one file")
     parser.add_argument("--blocksize", type=int, default=500, help="Block size in units (default: 500)")
     parser.add_argument("--unit", choices=["KB", "MB", "GB"], default="MB", help="Block size unit")
     parser.add_argument("--head-only", action="store_true", help="Use md5_head only")
     return parser.parse_args()
-
 
 def main():
     args = parse_args()
@@ -133,7 +145,7 @@ def main():
         create=args.create
     )
     if args.create and len(files) == 1:
-        checker.generate_yaml()
+        checker.generate_yaml(args.url)
     elif len(files) == 2:
         checker.compare()
     else:

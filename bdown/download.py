@@ -13,7 +13,6 @@ import requests
 from bdown.block import Block
 from bdown.block_fiddler import BlockFiddler
 import subprocess
-import shutil
 
 @lod_storable
 class BlockDownload(BlockFiddler):
@@ -28,6 +27,8 @@ class BlockDownload(BlockFiddler):
         self.lock = Lock()
         self.active_blocks = set()
         self.progress_lock = Lock()
+        if self.size is None:
+            self.size = self._get_remote_file_size()
 
     def download_via_os(self, target_path:str, cmd=None)->int:
         """
@@ -74,7 +75,8 @@ class BlockDownload(BlockFiddler):
     def _get_remote_file_size(self) -> int:
         response = requests.head(self.url, allow_redirects=True)
         response.raise_for_status()
-        return int(response.headers.get("Content-Length", 0))
+        file_size=int(response.headers.get("Content-Length", 0))
+        return file_size
 
     def block_ranges(
         self, from_block: int, to_block: int
