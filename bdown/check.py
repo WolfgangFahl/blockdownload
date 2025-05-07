@@ -84,9 +84,9 @@ class BlockCheck(BlockFiddler):
     def generate_yaml(self,url:str):
         self.get_or_create_yaml(path=self.file1,url=url)
 
-    def compare(self):
-        bd1 = self.get_or_create_yaml(self.file1)
-        bd2 = self.get_or_create_yaml(self.file2)
+    def compare(self,url):
+        bd1 = self.get_or_create_yaml(self.file1,url=url)
+        bd2 = self.get_or_create_yaml(self.file2,url=url)
 
         b1 = {b.block: b for b in bd1.blocks}
         b2 = {b.block: b for b in bd2.blocks}
@@ -150,7 +150,7 @@ def main():
     if args.create and len(files) == 1:
         checker.generate_yaml(args.url)
     elif len(files) == 2:
-        checker.compare()
+        checker.compare(args.url)
     else:
         print("Usage:\n  check.py --create file\n  check.py file1 file2 [--head-only]")
 
