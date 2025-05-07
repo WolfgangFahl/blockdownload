@@ -48,7 +48,7 @@ class Block:
     md5: str = None  # full md5 hash
     md5_head: str = None  # hash of first chunk
 
-    def calc_md5(self, base_path: str, chunk_size: int = 8192, chunk_limit: int = None) -> str:
+    def calc_md5(self, base_path: str, chunk_size: int = 8192, chunk_limit: int = None, progress_bar=None) -> str:
         """
         Calculate the MD5 checksum of this block's file.
 
@@ -56,6 +56,7 @@ class Block:
             base_path: Directory where the block's relative path is located.
             chunk_size: Bytes per read operation (default: 8192).
             chunk_limit: Maximum number of chunks to read (e.g. 1 for md5_head).
+            progress_bar: if supplied update the progress_bar
 
         Returns:
             str: The MD5 hexadecimal digest.
@@ -68,6 +69,9 @@ class Block:
             for chunk in iter(lambda: f.read(chunk_size), b""):
                 hash_md5.update(chunk)
                 index += 1
+                # Update progress bar if provided
+                if progress_bar:
+                    progress_bar.update(len(chunk))
                 if chunk_limit is not None and index >= chunk_limit:
                     break
 

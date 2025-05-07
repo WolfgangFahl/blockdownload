@@ -71,14 +71,15 @@ class BlockCheck(BlockFiddler):
                     block.size = end - start + 1
                     block.md5_head = block.calc_md5(os.path.dirname(path), chunk_limit=1)
                     if not self.head_only:
-                        block.md5 = block.calc_md5(os.path.dirname(path))
+                        block.md5 = block.calc_md5(os.path.dirname(path),progress_bar=progress)
                     bd.blocks.append(block)
                     block_range = self.format_block_index_range(index, to_block)
                     from_size = self.format_size(start, unit="GB",show_unit=False)
                     to_size=self.format_size(end,unit="GB")
                     desc = f"Block {block_range} {from_size}-{to_size}"
                     progress.set_description(desc)
-                    progress.update(bd.blocksize_bytes)
+                    if self.head_only:
+                        progress.update(bd.blocksize_bytes)
             bd.yaml_path = yaml_path
             bd.save()
             formatted_size = bd.format_size(bd.size)
