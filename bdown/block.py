@@ -26,6 +26,17 @@ class Status:
     def update(self, symbol: StatusSymbol, index: int):
         self.symbol_blocks[symbol].add(index)
 
+    def count(self, symbol: StatusSymbol)->int:
+        """Returns count of blocks with given status symbol"""
+        status_count=len(self.symbol_blocks[symbol])
+        return status_count
+
+    @property
+    def success(self)->bool:
+        """Returns True if all blocks matched successfully with no warnings or failures"""
+        success=self.count(StatusSymbol.FAIL)==0 and self.count(StatusSymbol.WARN)==0 and self.count(StatusSymbol.SUCCESS)>0
+        return success
+
     def summary(self) -> str:
         return " ".join(
             f"{len(self.symbol_blocks[symbol])}{symbol.value}"
@@ -48,7 +59,7 @@ class Block:
     md5: str = None  # full md5 hash
     md5_head: str = None  # hash of first chunk
 
-    def calc_md5(self, base_path: str, chunk_size: int = 8192, chunk_limit: int = None, progress_bar=None) -> str:
+    def calc_md5(self, base_path: str, chunk_size: int = 8192, chunk_limit: int = None, progress_bar=None, seek_to_offset: bool = False) -> str:
         """
         Calculate the MD5 checksum of this block's file.
 
@@ -57,6 +68,7 @@ class Block:
             chunk_size: Bytes per read operation (default: 8192).
             chunk_limit: Maximum number of chunks to read (e.g. 1 for md5_head).
             progress_bar: if supplied update the progress_bar
+            seek_to_offset: Whether seek to the block's offset (default: False) - needs to be True for non blocked complete files
 
         Returns:
             str: The MD5 hexadecimal digest.
@@ -66,6 +78,9 @@ class Block:
         index = 0
 
         with open(full_path, "rb") as f:
+            # seek to offset in case self.path is a large file containing multiple blocks
+            if seek_to_offset:
+                f.seek(self.offset)
             for chunk in iter(lambda: f.read(chunk_size), b""):
                 hash_md5.update(chunk)
                 index += 1

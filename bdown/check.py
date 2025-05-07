@@ -69,9 +69,9 @@ class BlockCheck(BlockFiddler):
                 for index, start, end in bd.block_ranges(from_block, to_block):
                     block = Block(block=index, offset=start, path=os.path.basename(path))
                     block.size = end - start + 1
-                    block.md5_head = block.calc_md5(os.path.dirname(path), chunk_limit=1)
+                    block.md5_head = block.calc_md5(os.path.dirname(path), chunk_limit=1,seek_to_offset=True)
                     if not self.head_only:
-                        block.md5 = block.calc_md5(os.path.dirname(path),progress_bar=progress)
+                        block.md5 = block.calc_md5(os.path.dirname(path),progress_bar=progress,seek_to_offset=True)
                     bd.blocks.append(block)
                     block_range = self.format_block_index_range(index, to_block)
                     from_size = self.format_size(start, unit="GB",show_unit=False)
