@@ -3,16 +3,17 @@ Created on 2025-05-05
 
 @author: wf
 """
-
+from queue import Queue
+import glob
 import os
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
-
+from typing import List
 import requests
 from lodstorage.yamlable import lod_storable
 
-from bdown.block import Block
+from bdown.block import Block, StatusSymbol
 from bdown.block_fiddler import BlockFiddler
 
 
@@ -26,9 +27,10 @@ class BlockDownload(BlockFiddler):
         """
         # call the general  @constructor time initialization
         super().__post_init__()
-        self.lock = Lock()
         self.active_blocks = set()
         self.progress_lock = Lock()
+        # Add a queue for thread-safe block collection
+        self.block_queue = Queue()
         if self.size is None:
             self.size = self._get_remote_file_size()
 
@@ -72,6 +74,7 @@ class BlockDownload(BlockFiddler):
         return block_download
 
     def save(self):
+        self.sort_blocks()
         if hasattr(self, "yaml_path") and self.yaml_path:
             self.save_to_yaml_file(self.yaml_path)
 
@@ -80,6 +83,27 @@ class BlockDownload(BlockFiddler):
         response.raise_for_status()
         file_size = int(response.headers.get("Content-Length", 0))
         return file_size
+
+    def boosted_download(self, block_specs, target, progress_bar, boost):
+        """Handle parallel downloading of blocks with proper tracking"""
+        processed_blocks = set()
+        with ThreadPoolExecutor(max_workers=boost) as executor:
+            futures = []
+            for index, start, end in block_specs:
+                future = executor.submit(
+                    self._download_block, index, start, end, target, progress_bar
+                )
+                futures.append((index, future))
+
+            # Wait for all tasks to complete and track which completed successfully
+            for index, future in futures:
+                try:
+                    future.result()
+                    processed_blocks.add(index)
+                except Exception as e:
+                    print(f"Error processing block {index}: {e}")
+
+        return processed_blocks
 
     def download(
         self,
@@ -115,11 +139,15 @@ class BlockDownload(BlockFiddler):
             for index, start, end in block_specs:
                 self._download_block(index, start, end, target, progress_bar)
         else:
-            with ThreadPoolExecutor(max_workers=boost) as executor:
-                for index, start, end in block_specs:
-                    executor.submit(
-                        self._download_block, index, start, end, target, progress_bar
-                    )
+            boosted_blocks=self.boosted_download(block_specs, target, progress_bar, boost)
+            # Check if we processed all expected blocks
+            expected_blocks = set(range(from_block, to_block + 1))
+            missed_blocks = expected_blocks - boosted_blocks
+            if missed_blocks:
+                print(f"{StatusSymbol.WARN}: Failed to process blocks: {sorted(missed_blocks)}")
+
+        # After all downloads are complete, collect and save the blocks
+        self.save_blocks(target)
 
     def update_progress(self, progress_bar, index: int):
         with self.progress_lock:
@@ -133,8 +161,9 @@ class BlockDownload(BlockFiddler):
     def _download_block(
         self, index: int, start: int, end: int, target: str, progress_bar
     ):
-        part_name = f"{self.name}-{index:04d}.part"
-        part_file = os.path.join(target, part_name)
+        part_name = f"{self.name}-{index:04d}"
+        part_file = os.path.join(target, f"{part_name}.part")
+        block_yaml_path = os.path.join(target, f"{part_name}.yaml")
 
         if index < len(self.blocks):
             existing = self.blocks[index]
@@ -162,12 +191,37 @@ class BlockDownload(BlockFiddler):
             response=response,
             progress_bar=progress_bar,
         )
-
-        with self.lock:
-            if index < len(self.blocks):
-                self.blocks[index] = block
-            else:
-                self.blocks.append(block)
-            self.sort_blocks()
-            self.save()
+        block.save_to_yaml_file(block_yaml_path)
+        # Add block to the thread-safe queue
+        self.block_queue.put(block)
+        # update progress
         self.update_progress(progress_bar, -(index + 1))
+
+    def save_blocks(self, target_dir):
+        """Save blocks and verify against the separately collected blocks"""
+        while not self.block_queue.empty():
+            self.blocks.append(self.block_queue.get())
+
+        # First sort and save all blocks
+        self.save()
+
+        # Now check that the collected blocks are the same as what we've downloaded
+        cblocks = self.collect_blocks(target_dir)
+
+        # Sort both sets of blocks for comparison
+        cblocks.sort(key=lambda b: b.offset)
+        self.sort_blocks()
+
+        # Compare block counts
+        if len(cblocks) != len(self.blocks):
+            print(f"{StatusSymbol.WARN}: Collected {len(cblocks)} blocks but have {len(self.blocks)} in memory")
+
+
+    def collect_blocks(self,target_dir)->List[Block]:
+        """Collect all block YAMLs"""
+        block_files = glob.glob(os.path.join(target_dir, f"{self.name}-*.yaml"))
+        blocks=[]
+        for block_file in sorted(block_files):
+            block = Block.load_from_yaml_file(block_file)
+            blocks.append(block)
+        return blocks

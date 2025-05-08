@@ -63,13 +63,13 @@ class BlockDownloadWorker:
                 self.progress_bar.set_description("Creating target")
 
             # Reassemble blocks into output file
-            md5=self.downloader.reassemble(
+            md5 = self.downloader.reassemble(
                 parts_dir=self.args.target,
                 output_path=self.args.output,
                 progress_bar=self.progress_bar,
             )
             if not self.downloader.md5 and md5:
-                self.downloader.md5=md5
+                self.downloader.md5 = md5
                 self.downloader.save()
 
             print(f"File reassembled successfully: {self.args.output}")

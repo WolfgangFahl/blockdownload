@@ -218,10 +218,10 @@ class BlockFiddler:
                 progress_bar.update(block_size)
 
         total_str = self.format_size(total)
-        msg=f"created {output_path} - {total_str}"
-        md5_hex=None
+        msg = f"created {output_path} - {total_str}"
+        md5_hex = None
         if md5:
             md5_hex = md5.hexdigest()
-            msg+=f"\nmd5: {md5_hex}"
-        print (msg)
+            msg += f"\nmd5: {md5_hex}"
+        print(msg)
         return md5_hex

@@ -21,7 +21,7 @@ blockdownload \
   --name $name \
   --blocksize 32 \
   --unit MB \
-  --boost 1 \
+  --boost 4 \
   --progress \
   --output $output_file
 
