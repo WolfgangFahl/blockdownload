@@ -40,7 +40,8 @@ class BlockDownloadWorker:
     def work(self):
         if self.need_download:
             if self.progress_bar:
-                self.progress_bar.set_description("Downloading")
+                mode="Patching" if self.args.patch else "Downloading"
+                self.progress_bar.set_description(mode)
             self.downloader.download(
                 target=self.args.target,
                 from_block=self.from_block,
@@ -107,6 +108,9 @@ def main():
         "--progress", action="store_true", help="Show tqdm progress bar"
     )
     parser.add_argument(
+        "--patch", action="store_true", help="patch missing blocks"
+    )
+    parser.add_argument(
         "--yaml", help="Path to the YAML metadata file (for standalone reassembly)"
     )
     parser.add_argument(
@@ -124,7 +128,7 @@ def main():
         yaml_path = os.path.join(args.target, f"{args.name}.yaml")
     if os.path.exists(yaml_path):
         downloader = BlockDownload.ofYamlPath(yaml_path)
-        need_download = False
+        need_download = args.patch
     else:
         downloader = BlockDownload(
             name=args.name, url=args.url, blocksize=args.blocksize, unit=args.unit
