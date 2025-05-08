@@ -29,16 +29,16 @@ class TestBlockDownload(BaseBlockTest):
         """
         from_block = 0
         if self.inLocalCI() or self.inPublicCI():
-            to_block=None
-            block_size=32
-            unit="MB"
-        else:
-            to_block =3
-            block_size=512
-            unit="KB"
             to_block = None
-            block_size=32
-            unit="MB"
+            block_size = 32
+            unit = "MB"
+        else:
+            to_block = 3
+            block_size = 512
+            unit = "KB"
+            to_block = None
+            block_size = 32
+            unit = "MB"
         if os.path.exists(self.yaml_path):
             block_download = BlockDownload.load_from_yaml_file(self.yaml_path)
         else:
@@ -48,17 +48,14 @@ class TestBlockDownload(BaseBlockTest):
                 blocksize=block_size,
                 unit=unit,
             )
-            block_download.yaml_path=self.yaml_path
+            block_download.yaml_path = self.yaml_path
         block_download.compute_total_bytes(from_block, to_block)
         if self.debug:
             progress_bar = block_download.get_progress_bar(from_block, to_block)
             progress_bar.set_description("Downloading")
             with progress_bar:
                 block_download.download(
-                    self.download_dir,
-                    from_block,
-                    to_block,
-                    progress_bar=progress_bar
+                    self.download_dir, from_block, to_block, progress_bar=progress_bar
                 )
         else:
             block_download.download(self.download_dir, from_block, to_block)
@@ -70,5 +67,3 @@ class TestBlockDownload(BaseBlockTest):
             print(f"Block {i:04d} offset={block.offset}:")
             print(f"  stored md5 : {stored_md5}")
             print(f"  actual md5 : {actual_md5}")
-
-

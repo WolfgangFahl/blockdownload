@@ -1,40 +1,48 @@
-'''
+"""
 Created on 2025-05-06
 
 @author: wf
-'''
-from lodstorage.yamlable import lod_storable
+"""
+
 import hashlib
 import os
-import requests
 from enum import Enum
+from typing import Optional
+
+import requests
+from lodstorage.yamlable import lod_storable
+
 
 class StatusSymbol(Enum):
     SUCCESS = "✅"
     FAIL = "❌"
     WARN = "⚠️"
 
+
 class Status:
     """
     Track block comparison results and provide symbolic summary.
     """
+
     def __init__(self):
-        self.symbol_blocks = {
-            symbol: set() for symbol in StatusSymbol
-        }
+        self.symbol_blocks = {symbol: set() for symbol in StatusSymbol}
 
     def update(self, symbol: StatusSymbol, index: int):
         self.symbol_blocks[symbol].add(index)
 
-    def count(self, symbol: StatusSymbol)->int:
+    def count(self, symbol: StatusSymbol) -> int:
         """Returns count of blocks with given status symbol"""
-        status_count=len(self.symbol_blocks[symbol])
+        status_count = len(self.symbol_blocks[symbol])
         return status_count
 
     @property
-    def success(self)->bool:
+    def success(self) -> bool:
         """Returns True if all blocks matched successfully with no warnings or failures"""
-        success=self.count(StatusSymbol.FAIL)==0 and self.count(StatusSymbol.WARN)==0 and self.count(StatusSymbol.SUCCESS)>0
+        success = (
+            self.count(StatusSymbol.FAIL) == 0
+            and self.count(StatusSymbol.WARN) == 0
+            and self.count(StatusSymbol.SUCCESS) > 0
+        )
         return success
 
     def summary(self) -> str:
@@ -57,9 +65,16 @@ class Block:
     path: str
     offset: int
     md5: str = ""  # full md5 hash
-    md5_head: str = "" # hash of first chunk
+    md5_head: str = ""  # hash of first chunk
 
-    def calc_md5(self, base_path: str, chunk_size: int = 8192, chunk_limit: int = None, progress_bar=None, seek_to_offset: bool = False) -> str:
+    def calc_md5(
+        self,
+        base_path: str,
+        chunk_size: int = 8192,
+        chunk_limit: int = None,
+        progress_bar=None,
+        seek_to_offset: bool = False,
+    ) -> str:
         """
         Calculate the MD5 checksum of this block's file.
 
@@ -106,14 +121,21 @@ class Block:
         data = f.read(self.size)
         return data
 
-    def copy_to(self, parts_dir: str, output_path: str, chunk_size:int=1024*1024) -> int:
+    def copy_to(
+        self,
+        parts_dir: str,
+        output_path: str,
+        chunk_size: int = 1024 * 1024,
+        md5: Optional[hashlib._hashlib.HASH] = None,
+    ) -> int:
         """
         Copy block data from part file to the correct offset in target file
 
         Args:
             parts_dir: Directory containing part files
             output_path: Path to output file where block will be copied
-            chunk_size:
+            chunk_size: Size of read/write chunks
+            md5: Optional hashlib.md5() instance for on-the-fly update
 
         Returns:
             Number of bytes copied
@@ -121,17 +143,16 @@ class Block:
         part_path = os.path.join(parts_dir, self.path)
         bytes_copied = 0
 
-        # Write to the correct offset in target file
-        with open(part_path, 'rb') as part_file:
-            with open(output_path, 'r+b') as out_file:
+        with open(part_path, "rb") as part_file:
+            with open(output_path, "r+b") as out_file:
                 out_file.seek(self.offset)
-
-                # Read and write in chunks
                 while True:
                     chunk = part_file.read(chunk_size)
                     if not chunk:
                         break
                     out_file.write(chunk)
+                    if md5:
+                        md5.update(chunk)
                     bytes_copied += len(chunk)
 
         return bytes_copied
@@ -166,7 +187,6 @@ class Block:
         if not quiet:
             print(f"[{self.index:3}] {offset_mb:7,} MB  {symbol}  {message}")
 
-
     @classmethod
     def ofResponse(
         cls,
@@ -193,7 +213,7 @@ class Block:
         hash_md5 = hashlib.md5()
         hash_head = hashlib.md5()
         first = True
-        block_path=os.path.basename(target_path)
+        block_path = os.path.basename(target_path)
         if progress_bar:
             progress_bar.set_description(block_path)
         with open(target_path, "wb") as f:

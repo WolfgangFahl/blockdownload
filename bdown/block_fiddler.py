@@ -3,15 +3,21 @@ Created on 2025-05-06
 
 @author: wf
 """
-from bdown.block import Block
-from typing import List, Tuple
-from dataclasses import dataclass,field
-from tqdm import tqdm
+
+import hashlib
 import os
+from dataclasses import dataclass, field
+from typing import List, Tuple
+
+from tqdm import tqdm
+
+from bdown.block import Block
+
 
 @dataclass
 class BlockFiddler:
     """Base class for block operations with shared functionality"""
+
     name: str
     blocksize: int
     size: int = None
@@ -32,24 +38,24 @@ class BlockFiddler:
 
     @property
     def blocksize_bytes(self) -> int:
-        blocksize_bytes=self.blocksize * self.unit_multipliers[self.unit]
+        blocksize_bytes = self.blocksize * self.unit_multipliers[self.unit]
         return blocksize_bytes
 
     @property
     def total_blocks(self) -> int:
         if self.size is None:
             raise ValueError("total file size must be set")
-        total_blocks=(self.size + self.blocksize_bytes - 1) // self.blocksize_bytes
+        total_blocks = (self.size + self.blocksize_bytes - 1) // self.blocksize_bytes
         return total_blocks
 
     @property
     def last_block_size(self) -> int:
-        total_blocks=self.total_blocks
+        total_blocks = self.total_blocks
         if total_blocks == 0:
-            last_block_size=0
+            last_block_size = 0
         else:
-            same_size_total=(total_blocks - 1) * self.blocksize_bytes
-            last_block_size=self.size -same_size_total
+            same_size_total = (total_blocks - 1) * self.blocksize_bytes
+            last_block_size = self.size - same_size_total
         return last_block_size
 
     def sort_blocks(self):
@@ -58,7 +64,7 @@ class BlockFiddler:
         """
         self.blocks.sort(key=lambda b: b.block)
 
-    def format_size(self, size_bytes, unit=None, decimals=2, show_unit:bool=True):
+    def format_size(self, size_bytes, unit=None, decimals=2, show_unit: bool = True):
         """
         Format byte size to appropriate units
 
@@ -74,7 +80,7 @@ class BlockFiddler:
         divisor = self.unit_multipliers[unit]
         formatted = f"{size_bytes/divisor:.{decimals}f}"
         if show_unit:
-            formatted+=f" {unit}"
+            formatted += f" {unit}"
         return formatted
 
     def format_block_index_range(self, from_block, to_block):
@@ -96,7 +102,6 @@ class BlockFiddler:
         formatted = f"{from_part}/{to_part}"
         return formatted
 
-
     def calc_block_range_size_bytes(self, from_block: int, to_block: int) -> int:
         """
         Calculate total number of bytes in a block range.
@@ -109,12 +114,16 @@ class BlockFiddler:
             Total number of bytes in the specified block range
         """
         if to_block is None:
-            to_block=self.total_blocks
+            to_block = self.total_blocks
         if to_block >= self.total_blocks:
             to_block = self.total_blocks - 1
 
         full_blocks = max(0, to_block - from_block)
-        last_block_size = self.last_block_size if to_block == self.total_blocks - 1 else self.blocksize_bytes
+        last_block_size = (
+            self.last_block_size
+            if to_block == self.total_blocks - 1
+            else self.blocksize_bytes
+        )
         total_bytes = full_blocks * self.blocksize_bytes + last_block_size
         return total_bytes
 
@@ -140,7 +149,7 @@ class BlockFiddler:
         return result
 
     def compute_total_bytes(
-        self, from_block: int, to_block: int=None
+        self, from_block: int, to_block: int = None
     ) -> Tuple[int, int, int]:
         """
         Compute the total number of bytes to download for a block range.
@@ -169,7 +178,14 @@ class BlockFiddler:
         bar.update(0)
         return bar
 
-    def reassemble(self, parts_dir: str, output_path: str, progress_bar=None, force=False):
+    def reassemble(
+        self,
+        parts_dir: str,
+        output_path: str,
+        progress_bar=None,
+        force=False,
+        compute_md5=True,
+    ) -> str:
         """
         Reassemble a complete file from my blocks
 
@@ -178,24 +194,34 @@ class BlockFiddler:
             output_path: Path where reassembled file will be saved
             progress_bar: Optional progress bar
             force: If True, overwrite existing file without warning
-        """
-        # Check if output file exists
-        if os.path.exists(output_path) and not force:
-            raise FileExistsError(f"Output file {output_path} already exists. Please specify a different path, use force=True, or remove the existing file first.")
+            compute_md5: If True, compute MD5 while copying
 
-        # Create empty output file of the correct size
-        with open(output_path, 'wb') as f:
+        Returns:
+            The hex digest of the MD5 checksum if computed, else None
+        """
+        if os.path.exists(output_path) and not force:
+            raise FileExistsError(
+                f"Output file {output_path} already exists. Please specify a different path, use force=True, or remove the existing file first."
+            )
+
+        with open(output_path, "wb") as f:
             f.truncate(self.size)
 
-        # Sort blocks by index to ensure proper order
         self.sort_blocks()
-        total=0
-        # Copy each block to the output file
+        total = 0
+        md5 = hashlib.md5() if compute_md5 else None
+
         for block in self.blocks:
-            block_size=block.copy_to(parts_dir, output_path)
-            total+=block_size
+            block_size = block.copy_to(parts_dir, output_path, md5=md5)
+            total += block_size
             if progress_bar:
                 progress_bar.update(block_size)
 
-        total_str=self.format_size(total)
-        print(f"created {output_path} - {total_str}")
+        total_str = self.format_size(total)
+        msg=f"created {output_path} - {total_str}"
+        md5_hex=None
+        if md5:
+            md5_hex = md5.hexdigest()
+            msg+=f"\nmd5: {md5_hex}"
+        print (msg)
+        return md5_hex

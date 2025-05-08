@@ -17,19 +17,21 @@ Usage:
 Created on 2025-05-06
 Author: wf
 """
-from dataclasses import field
 import argparse
 import os
-from dataclasses import dataclass
-from bdown.download import BlockDownload
+from dataclasses import dataclass, field
+
 from bdown.block import Block, Status, StatusSymbol
 from bdown.block_fiddler import BlockFiddler
+from bdown.download import BlockDownload
+
 
 @dataclass
 class BlockCheck(BlockFiddler):
     """
     check downloaded blocks
     """
+
     file1: str = None
     file2: str = None
     head_only: bool = False
@@ -43,12 +45,14 @@ class BlockCheck(BlockFiddler):
         self.size = os.path.getsize(self.file1)
         super().__post_init__()
 
-    def get_or_create_yaml(self, path:str, url:str):
+    def get_or_create_yaml(self, path: str, url: str):
         """
         get or create a yaml file for the given path and url
         """
         yaml_path = path + ".yaml"
-        print(f"Processing {path}... (file size: {os.path.getsize(path) / (1024**3):.2f} GB)")
+        print(
+            f"Processing {path}... (file size: {os.path.getsize(path) / (1024**3):.2f} GB)"
+        )
         if os.path.exists(yaml_path):
             bd = BlockDownload.ofYamlPath(yaml_path)
         else:
@@ -56,26 +60,34 @@ class BlockCheck(BlockFiddler):
                 name=os.path.basename(path),
                 url=url,
                 blocksize=self.blocksize,
-                unit=self.unit
+                unit=self.unit,
             )
             file_size = os.path.getsize(path)
-            if not file_size==bd.size:
-                msg=f"file size mismatch file:{file_size} != download url {bd.size}"
+            if not file_size == bd.size:
+                msg = f"file size mismatch file:{file_size} != download url {bd.size}"
                 raise Exception(msg)
             from_block = 0
             _, to_block, _ = bd.compute_total_bytes(from_block)
             progress = bd.get_progress_bar(from_block, to_block)
             with progress:
                 for index, start, end in bd.block_ranges(from_block, to_block):
-                    block = Block(block=index, offset=start, path=os.path.basename(path))
+                    block = Block(
+                        block=index, offset=start, path=os.path.basename(path)
+                    )
                     block.size = end - start + 1
-                    block.md5_head = block.calc_md5(os.path.dirname(path), chunk_limit=1,seek_to_offset=True)
+                    block.md5_head = block.calc_md5(
+                        os.path.dirname(path), chunk_limit=1, seek_to_offset=True
+                    )
                     if not self.head_only:
-                        block.md5 = block.calc_md5(os.path.dirname(path),progress_bar=progress,seek_to_offset=True)
+                        block.md5 = block.calc_md5(
+                            os.path.dirname(path),
+                            progress_bar=progress,
+                            seek_to_offset=True,
+                        )
                     bd.blocks.append(block)
                     block_range = self.format_block_index_range(index, to_block)
-                    from_size = self.format_size(start, unit="GB",show_unit=False)
-                    to_size=self.format_size(end,unit="GB")
+                    from_size = self.format_size(start, unit="GB", show_unit=False)
+                    to_size = self.format_size(end, unit="GB")
                     desc = f"MD5 {block_range} {from_size}-{to_size}"
                     progress.set_description(desc)
                     if self.head_only:
@@ -88,9 +100,8 @@ class BlockCheck(BlockFiddler):
             print(msg)
         return bd
 
-    def generate_yaml(self,url:str):
-        self.get_or_create_yaml(path=self.file1,url=url)
-
+    def generate_yaml(self, url: str):
+        self.get_or_create_yaml(path=self.file1, url=url)
 
     def compare(self, url=None):
         """
@@ -100,7 +111,7 @@ class BlockCheck(BlockFiddler):
             url: Optional URL for reference
         """
         # Check if both files are YAML files
-        if self.file1.endswith('.yaml') and self.file2.endswith('.yaml'):
+        if self.file1.endswith(".yaml") and self.file2.endswith(".yaml"):
             # Compare two YAML files directly
             self.compare_yaml_files(self.file1, self.file2)
         else:
@@ -165,15 +176,24 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Check block-level integrity of files downloaded using blockdownload .yaml metadata."
     )
-    parser.add_argument("--url",
-        required=True,
-        help="Download URL to check against")
-    parser.add_argument("file", nargs="+", help="File(s) to process (1=create, 2=compare - either by creating yamls for two downloads or by supplying two yaml files)")
-    parser.add_argument("--create", action="store_true", help="Generate .yaml for one file")
-    parser.add_argument("--blocksize", type=int, default=500, help="Block size in units (default: 500)")
-    parser.add_argument("--unit", choices=["KB", "MB", "GB"], default="MB", help="Block size unit")
+    parser.add_argument("--url", required=True, help="Download URL to check against")
+    parser.add_argument(
+        "file",
+        nargs="+",
+        help="File(s) to process (1=create, 2=compare - either by creating yamls for two downloads or by supplying two yaml files)",
+    )
+    parser.add_argument(
+        "--create", action="store_true", help="Generate .yaml for one file"
+    )
+    parser.add_argument(
+        "--blocksize", type=int, default=500, help="Block size in units (default: 500)"
+    )
+    parser.add_argument(
+        "--unit", choices=["KB", "MB", "GB"], default="MB", help="Block size unit"
+    )
     parser.add_argument("--head-only", action="store_true", help="Use md5_head only")
     return parser.parse_args()
+
 
 def main():
     args = parse_args()
@@ -185,7 +205,7 @@ def main():
         blocksize=args.blocksize,
         unit=args.unit,
         head_only=args.head_only,
-        create=args.create
+        create=args.create,
     )
     if args.create and len(files) == 1:
         checker.generate_yaml(args.url)

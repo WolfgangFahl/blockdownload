@@ -4,11 +4,13 @@ Created on 2025-05-05
 @author: wf
 """
 
-from bdown.check import BlockCheck
+import os
+
 from bdown.block import StatusSymbol
+from bdown.check import BlockCheck
 from bdown.download import BlockDownload
 from tests.baseblocktest import BaseBlockTest
-import os
+
 
 class TestBlockCheck(BaseBlockTest):
     """
@@ -17,10 +19,10 @@ class TestBlockCheck(BaseBlockTest):
 
     def setUp(self, debug=False, profile=True):
         super().setUp(debug, profile)
-        self.iso_file_name="debian-12.10.0-amd64-netinst.iso"
+        self.iso_file_name = "debian-12.10.0-amd64-netinst.iso"
         self.iso_path = os.path.join(self.download_dir, self.iso_file_name)
 
-    def get_block_download(self)->BlockDownload:
+    def get_block_download(self) -> BlockDownload:
         if os.path.exists(self.yaml_path):
             block_download = BlockDownload.load_from_yaml_file(self.yaml_path)
         return block_download
@@ -31,11 +33,11 @@ class TestBlockCheck(BaseBlockTest):
         """
         iso_exists = os.path.exists(self.iso_path)
         if self.inPublicCI() or self.inLocalCI() and not iso_exists:
-            block_download=self.get_block_download()
-            self.iso_size=block_download.download_via_os(self.iso_path)
+            block_download = self.get_block_download()
+            self.iso_size = block_download.download_via_os(self.iso_path)
         else:
-            self.iso_size=os.path.getsize(self.iso_path)
-        self.assertEqual(663748608,self.iso_size)
+            self.iso_size = os.path.getsize(self.iso_path)
+        self.assertEqual(663748608, self.iso_size)
         # Generate YAML if needed for the ISO file
         iso_yaml_path = self.iso_path + ".yaml"
         if not os.path.exists(iso_yaml_path):
@@ -46,10 +48,12 @@ class TestBlockCheck(BaseBlockTest):
                 blocksize=self.blocksize,
                 unit=self.unit,
                 head_only=True,
-                create=True
+                create=True,
             )
             check.generate_yaml(self.url)
-            self.assertTrue(os.path.exists(iso_yaml_path), "YAML file should be created")
+            self.assertTrue(
+                os.path.exists(iso_yaml_path), "YAML file should be created"
+            )
 
     def test_yaml_comparison(self):
         """
@@ -62,10 +66,10 @@ class TestBlockCheck(BaseBlockTest):
         check_compare = BlockCheck(
             name=self.name,
             file1=self.yaml_path,  # The download YAML
-            file2=iso_yaml_path,   # The direct YAML
+            file2=iso_yaml_path,  # The direct YAML
             blocksize=self.blocksize,
             unit=self.unit,
-            head_only=True
+            head_only=True,
         )
         check_compare.compare()
 

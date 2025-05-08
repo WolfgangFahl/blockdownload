@@ -3,19 +3,22 @@ Created on 2025-05-05
 
 @author: wf
 """
-from concurrent.futures import ThreadPoolExecutor
+
 import os
+import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
 
-from lodstorage.yamlable import lod_storable
 import requests
+from lodstorage.yamlable import lod_storable
+
 from bdown.block import Block
 from bdown.block_fiddler import BlockFiddler
-import subprocess
+
 
 @lod_storable
 class BlockDownload(BlockFiddler):
-    url: str=None
+    url: str = None
 
     def __post_init__(self):
         """
@@ -29,7 +32,7 @@ class BlockDownload(BlockFiddler):
         if self.size is None:
             self.size = self._get_remote_file_size()
 
-    def download_via_os(self, target_path:str, cmd=None)->int:
+    def download_via_os(self, target_path: str, cmd=None) -> int:
         """
         Download file using operating system command
 
@@ -51,14 +54,15 @@ class BlockDownload(BlockFiddler):
             return os.path.getsize(target_path)
         return -1
 
-
     def block_range_str(self) -> str:
         if not self.active_blocks:
-            range_str="∅"
+            range_str = "∅"
         else:
             min_block = min(self.active_blocks)
             max_block = max(self.active_blocks)
-            range_str=f"{min_block}" if min_block == max_block else f"{min_block}–{max_block}"
+            range_str = (
+                f"{min_block}" if min_block == max_block else f"{min_block}–{max_block}"
+            )
         return range_str
 
     @classmethod
@@ -74,7 +78,7 @@ class BlockDownload(BlockFiddler):
     def _get_remote_file_size(self) -> int:
         response = requests.head(self.url, allow_redirects=True)
         response.raise_for_status()
-        file_size=int(response.headers.get("Content-Length", 0))
+        file_size = int(response.headers.get("Content-Length", 0))
         return file_size
 
     def download(
@@ -100,7 +104,9 @@ class BlockDownload(BlockFiddler):
         os.makedirs(target, exist_ok=True)
 
         if to_block is None:
-            total_blocks = (self.size + self.blocksize_bytes - 1) // self.blocksize_bytes
+            total_blocks = (
+                self.size + self.blocksize_bytes - 1
+            ) // self.blocksize_bytes
             to_block = total_blocks - 1
 
         block_specs = self.block_ranges(from_block, to_block)
@@ -111,19 +117,22 @@ class BlockDownload(BlockFiddler):
         else:
             with ThreadPoolExecutor(max_workers=boost) as executor:
                 for index, start, end in block_specs:
-                    executor.submit(self._download_block, index, start, end, target, progress_bar)
+                    executor.submit(
+                        self._download_block, index, start, end, target, progress_bar
+                    )
 
-
-    def update_progress(self,progress_bar,index:int):
+    def update_progress(self, progress_bar, index: int):
         with self.progress_lock:
-            if index>0:
+            if index > 0:
                 self.active_blocks.add(index)
             else:
                 self.active_blocks.remove(-index)
             if progress_bar:
                 progress_bar.set_description(f"Blocks {self.block_range_str()}")
 
-    def _download_block(self, index: int, start: int, end: int, target: str, progress_bar):
+    def _download_block(
+        self, index: int, start: int, end: int, target: str, progress_bar
+    ):
         part_name = f"{self.name}-{index:04d}.part"
         part_file = os.path.join(target, part_name)
 
@@ -131,9 +140,7 @@ class BlockDownload(BlockFiddler):
             existing = self.blocks[index]
             if os.path.exists(part_file) and existing.md5_head:
                 actual_head = existing.calc_md5(
-                    base_path=target,
-                    chunk_size=self.chunk_size,
-                    chunk_limit=1
+                    base_path=target, chunk_size=self.chunk_size, chunk_limit=1
                 )
                 if actual_head == existing.md5_head:
                     if progress_bar:
@@ -141,7 +148,7 @@ class BlockDownload(BlockFiddler):
                         progress_bar.update(end - start + 1)
                     return
 
-        self.update_progress(progress_bar, index+1)
+        self.update_progress(progress_bar, index + 1)
         headers = {"Range": f"bytes={start}-{end}"}
         response = requests.get(self.url, headers=headers, stream=True)
         if response.status_code not in (200, 206):
@@ -163,4 +170,4 @@ class BlockDownload(BlockFiddler):
                 self.blocks.append(block)
             self.sort_blocks()
             self.save()
-        self.update_progress(progress_bar, -(index+1))
+        self.update_progress(progress_bar, -(index + 1))

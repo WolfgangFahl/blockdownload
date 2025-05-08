@@ -7,24 +7,28 @@ Created on 2025-05-05
 """
 
 import argparse
-from argparse import Namespace
 import os
+from argparse import Namespace
 
 from bdown.download import BlockDownload
+
 
 class BlockDownloadWorker:
     """
     command line interface options for block download
     """
-    def __init__(self,downloader:BlockDownload,args:Namespace):
-        self.downloader=downloader
-        self.args=args
+
+    def __init__(self, downloader: BlockDownload, args: Namespace):
+        self.downloader = downloader
+        self.args = args
         self.from_block = args.from_block
         self.to_block = args.to_block
         if args.progress:
-            self.progress_bar = downloader.get_progress_bar(from_block=self.from_block, to_block=self.to_block)
+            self.progress_bar = downloader.get_progress_bar(
+                from_block=self.from_block, to_block=self.to_block
+            )
         else:
-            self.progress_bar=None
+            self.progress_bar = None
 
     def work_with_progress(self):
         if self.args.progress:
@@ -42,12 +46,14 @@ class BlockDownloadWorker:
                 from_block=self.from_block,
                 to_block=self.to_block,
                 boost=self.args.boost,
-                progress_bar=self.progress_bar
+                progress_bar=self.progress_bar,
             )
         if self.args.output:
             # Check if output file exists and force flag is not set
             if os.path.exists(self.args.output) and not self.args.force:
-                print(f"Error: Output file {self.args.output} already exists. Use --force to overwrite.")
+                print(
+                    f"Error: Output file {self.args.output} already exists. Use --force to overwrite."
+                )
                 return
 
             # Update progress bar for reassembly if it exists
@@ -57,13 +63,17 @@ class BlockDownloadWorker:
                 self.progress_bar.set_description("Creating target")
 
             # Reassemble blocks into output file
-            self.downloader.reassemble(
+            md5=self.downloader.reassemble(
                 parts_dir=self.args.target,
                 output_path=self.args.output,
-                progress_bar=self.progress_bar
+                progress_bar=self.progress_bar,
             )
+            if not self.downloader.md5 and md5:
+                self.downloader.md5=md5
+                self.downloader.save()
 
             print(f"File reassembled successfully: {self.args.output}")
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -87,34 +97,44 @@ def main():
     )
     parser.add_argument("--from-block", type=int, default=0, help="First block index")
     parser.add_argument("--to-block", type=int, help="Last block index (inclusive)")
-    parser.add_argument("--boost", type=int, default=1, help="Number of concurrent download threads (default: 1)")
+    parser.add_argument(
+        "--boost",
+        type=int,
+        default=1,
+        help="Number of concurrent download threads (default: 1)",
+    )
     parser.add_argument(
         "--progress", action="store_true", help="Show tqdm progress bar"
     )
-    parser.add_argument("--yaml", help="Path to the YAML metadata file (for standalone reassembly)")
-    parser.add_argument("--force", action="store_true", help="Overwrite output file if it exists")
-    parser.add_argument("--output", help="Path where the final target file will be saved")
+    parser.add_argument(
+        "--yaml", help="Path to the YAML metadata file (for standalone reassembly)"
+    )
+    parser.add_argument(
+        "--force", action="store_true", help="Overwrite output file if it exists"
+    )
+    parser.add_argument(
+        "--output", help="Path where the final target file will be saved"
+    )
 
     args = parser.parse_args()
     os.makedirs(args.target, exist_ok=True)
     if args.yaml:
-        yaml_path=args.yaml
+        yaml_path = args.yaml
     else:
         yaml_path = os.path.join(args.target, f"{args.name}.yaml")
     if os.path.exists(yaml_path):
         downloader = BlockDownload.ofYamlPath(yaml_path)
-        need_download=False
+        need_download = False
     else:
         downloader = BlockDownload(
-            name=args.name,
-            url=args.url,
-            blocksize=args.blocksize, unit=args.unit
+            name=args.name, url=args.url, blocksize=args.blocksize, unit=args.unit
         )
-        need_download=True
+        need_download = True
     downloader.yaml_path = yaml_path
-    worker=BlockDownloadWorker(downloader,args)
-    worker.need_download=need_download
+    worker = BlockDownloadWorker(downloader, args)
+    worker.need_download = need_download
     worker.work_with_progress()
+
 
 if __name__ == "__main__":
     main()
