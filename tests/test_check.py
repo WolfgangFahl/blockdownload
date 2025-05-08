@@ -32,7 +32,8 @@ class TestBlockCheck(BaseBlockTest):
         test a blockcheck
         """
         iso_exists = os.path.exists(self.iso_path)
-        if self.inPublicCI() or self.inLocalCI() and not iso_exists:
+        # if self.inPublicCI() or self.inLocalCI() and
+        if not iso_exists:
             block_download = self.get_block_download()
             self.iso_size = block_download.download_via_os(self.iso_path)
         else:
@@ -61,7 +62,7 @@ class TestBlockCheck(BaseBlockTest):
         """
         iso_yaml_path = self.iso_path + ".yaml"
         if not os.path.exists(iso_yaml_path):
-            self.fail(f"missing {self.iso_yaml_path}")
+            self.fail(f"missing {iso_yaml_path}")
 
         check_compare = BlockCheck(
             name=self.name,

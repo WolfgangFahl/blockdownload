@@ -5,7 +5,6 @@ Created on 2025-05-05
 """
 
 import os
-from datetime import datetime
 
 from bdown.download import BlockDownload
 from tests.baseblocktest import BaseBlockTest
