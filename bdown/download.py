@@ -175,6 +175,8 @@ class BlockDownload(BlockFiddler):
                     if progress_bar:
                         progress_bar.set_description(part_name)
                         progress_bar.update(end - start + 1)
+                    if not os.path.exists(block_yaml_path):
+                        existing.save_to_yaml_file(block_yaml_path)
                     return
 
         self.update_progress(progress_bar, index + 1)
