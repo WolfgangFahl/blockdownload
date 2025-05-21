@@ -43,7 +43,7 @@ class TestBlockDownload(BaseBlockTest):
         else:
             block_download = BlockDownload(
                 name=self.name,
-                url="https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-12.10.0-amd64-netinst.iso",
+                url=self.url,
                 blocksize=block_size,
                 unit=unit,
             )

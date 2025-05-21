@@ -126,7 +126,7 @@ class Block:
         parts_dir: str,
         output_path: str,
         chunk_size: int = 1024 * 1024,
-        md5: Optional[hashlib._hashlib.HASH] = None,
+        md5 = None,
     ) -> int:
         """
         Copy block data from part file to the correct offset in target file
@@ -188,6 +188,46 @@ class Block:
             print(f"[{self.index:3}] {offset_mb:7,} MB  {symbol}  {message}")
 
     @classmethod
+    def ofIterator(
+        cls,
+        block_index: int,
+        offset: int,
+        chunk_size: int,
+        target_path: str,
+        chunks_iterator,
+        progress_bar=None,
+    ) -> "Block":
+        """
+        Create a Block from an iterator of data chunks.
+        """
+        hash_md5 = hashlib.md5()
+        hash_head = hashlib.md5()
+        first = True
+        block_path = os.path.basename(target_path)
+
+        if progress_bar:
+            progress_bar.set_description(block_path)
+
+        with open(target_path, "wb") as f:
+            for chunk in chunks_iterator:
+                f.write(chunk)
+                hash_md5.update(chunk)
+                if first:
+                    hash_head.update(chunk)
+                    first = False
+                if progress_bar:
+                    progress_bar.update(len(chunk))
+
+        created_block = cls(
+            block=block_index,
+            path=block_path,
+            offset=offset,
+            md5=hash_md5.hexdigest(),
+            md5_head=hash_head.hexdigest(),
+        )
+        return created_block
+
+    @classmethod
     def ofResponse(
         cls,
         block_index: int,
@@ -199,37 +239,50 @@ class Block:
     ) -> "Block":
         """
         Create a Block from a download HTTP response.
-
-        Args:
-            block_index: Index of the block.
-            offset: Byte offset within the full file.
-            target_path: Path to the .part file to write.
-            response: The HTTP response streaming the content.
-            progress_bar: optional progress_bar for reporting download progress.
-
-        Returns:
-            Block: The constructed block with calculated md5.
         """
-        hash_md5 = hashlib.md5()
-        hash_head = hashlib.md5()
-        first = True
-        block_path = os.path.basename(target_path)
-        if progress_bar:
-            progress_bar.set_description(block_path)
-        with open(target_path, "wb") as f:
-            for chunk in response.iter_content(chunk_size=chunk_size):
-                f.write(chunk)
-                hash_md5.update(chunk)
-                if first:
-                    hash_head.update(chunk)
-                    first = False
-                if progress_bar:
-                    progress_bar.update(len(chunk))
-        block = cls(
-            block=block_index,
-            path=block_path,
+        chunks_iterator = response.iter_content(chunk_size=chunk_size)
+        response_block = cls.ofIterator(
+            block_index=block_index,
             offset=offset,
-            md5=hash_md5.hexdigest(),
-            md5_head=hash_head.hexdigest(),
+            chunk_size=chunk_size,
+            target_path=target_path,
+            chunks_iterator=chunks_iterator,
+            progress_bar=progress_bar
         )
-        return block
+        return response_block
+
+    @classmethod
+    def ofFile(
+        cls,
+        block_index: int,
+        offset: int,
+        size: int,
+        chunk_size: int,
+        source_path: str,
+        target_path: str,
+        progress_bar=None,
+    ) -> "Block":
+        """
+        Create a Block from a file.
+        """
+        def file_chunk_iterator():
+            with open(source_path, "rb") as f:
+                f.seek(offset)
+                bytes_read = 0
+                while bytes_read < size:
+                    bytes_to_read = min(chunk_size, size - bytes_read)
+                    chunk = f.read(bytes_to_read)
+                    if not chunk:
+                        break
+                    bytes_read += len(chunk)
+                    yield chunk
+
+        file_block = cls.ofIterator(
+            block_index=block_index,
+            offset=offset,
+            chunk_size=chunk_size,
+            target_path=target_path,
+            chunks_iterator=file_chunk_iterator(),
+            progress_bar=progress_bar
+        )
+        return file_block

@@ -49,6 +49,19 @@ class BlockDownloadWorker:
                 boost=self.args.boost,
                 progress_bar=self.progress_bar,
             )
+        if self.args.split:
+            from bdown.filesplitter import FileSplitter
+            splitter = FileSplitter(
+                name=self.args.name,
+                blocksize=self.args.blocksize,
+                unit=self.args.unit,
+            )
+            splitter.split(
+                filepath=self.args.split,
+                target_dir=self.args.target,
+                progress_bar=self.progress_bar,
+            )
+
         if self.args.output:
             # Check if output file exists and force flag is not set
             if os.path.exists(self.args.output) and not self.args.force:
@@ -110,6 +123,11 @@ def main():
     parser.add_argument(
         "--patch", action="store_true", help="patch missing blocks"
     )
+    parser.add_argument(
+        "--split",
+        help="Path to local file to split instead of downloading"
+    )
+
     parser.add_argument(
         "--yaml", help="Path to the YAML metadata file (for standalone reassembly)"
     )

@@ -73,11 +73,6 @@ class BlockDownload(BlockFiddler):
         block_download.yaml_path = yaml_path
         return block_download
 
-    def save(self):
-        self.sort_blocks()
-        if hasattr(self, "yaml_path") and self.yaml_path:
-            self.save_to_yaml_file(self.yaml_path)
-
     def _get_remote_file_size(self) -> int:
         response = requests.head(self.url, allow_redirects=True)
         response.raise_for_status()

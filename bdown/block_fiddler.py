@@ -178,6 +178,11 @@ class BlockFiddler:
         bar.update(0)
         return bar
 
+    def save(self):
+        self.sort_blocks()
+        if hasattr(self, "yaml_path") and self.yaml_path:
+            self.save_to_yaml_file(self.yaml_path)
+
     def reassemble(
         self,
         parts_dir: str,
