@@ -29,7 +29,6 @@ class TestBlockCheck(BaseBlockTest):
         if not os.path.exists(self.sample_path):
             block_download = BlockDownload(
                 url=self.url,
-                path=self.sample_path,
                 blocksize=self.blocksize,
                 unit=self.unit,
             )
