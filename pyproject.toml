@@ -47,7 +47,7 @@ test = []
 only-include = ["bdown"]
 
 [tool.hatch.build.targets.wheel.sources]
-"osprojects" = "bdown"
+"bdown" = "bdown"
 
 
 [project.scripts]
