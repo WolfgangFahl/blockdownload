@@ -55,7 +55,7 @@ class TestBlockCheck(BaseBlockTest):
         Test generation of YAML metadata for ISO
         """
         self.prepare_sample()
-        self.assertEqual(663748608, os.path.getsize(self.sample_path))
+        self.assertEqual(self.sample_size, os.path.getsize(self.sample_path))
 
     def test_yaml_comparison(self):
         """
