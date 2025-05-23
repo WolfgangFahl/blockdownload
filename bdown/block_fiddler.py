@@ -187,16 +187,18 @@ class BlockFiddler:
         self,
         parts_dir: str,
         output_path: str,
+        blocks_iterator=None,
         progress_bar=None,
         force=False,
         compute_md5=True,
     ) -> str:
         """
-        Reassemble a complete file from my blocks
+        Reassemble a complete file from blocks
 
         Args:
             parts_dir: Directory containing part files
             output_path: Path where reassembled file will be saved
+            blocks_iterator: Iterator of blocks (if None, uses self.blocks)
             progress_bar: Optional progress bar
             force: If True, overwrite existing file without warning
             compute_md5: If True, compute MD5 while copying
@@ -212,11 +214,17 @@ class BlockFiddler:
         with open(output_path, "wb") as f:
             f.truncate(self.size)
 
-        self.sort_blocks()
         total = 0
         md5 = hashlib.md5() if compute_md5 else None
 
-        for block in self.blocks:
+        # Use iterator if provided, otherwise use self.blocks (sorted)
+        if blocks_iterator is not None:
+            blocks_source = blocks_iterator
+        else:
+            self.sort_blocks()
+            blocks_source = self.blocks
+
+        for block in blocks_source:
             block_size = block.copy_to(parts_dir, output_path, md5=md5)
             total += block_size
             if progress_bar:
