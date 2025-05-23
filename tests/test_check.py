@@ -14,67 +14,71 @@ from tests.baseblocktest import BaseBlockTest
 
 class TestBlockCheck(BaseBlockTest):
     """
-    test the check module
+    Test the check module with cold-start support and no redundancy.
     """
 
     def setUp(self, debug=False, profile=True):
         super().setUp(debug, profile)
-        self.iso_file_name = "debian-12.10.0-amd64-netinst.iso"
-        self.iso_path = os.path.join(self.download_dir, self.iso_file_name)
 
-    def get_block_download(self) -> BlockDownload:
-        if os.path.exists(self.yaml_path):
-            block_download = BlockDownload.load_from_yaml_file(self.yaml_path)
-        return block_download
+    def prepare_sample(self):
+        """
+        Ensure sample file and its YAML exist. Download and generate if needed.
+        """
+        os.makedirs(self.download_dir, exist_ok=True)
 
-    def test_blockcheck(self):
-        """
-        test a blockcheck
-        """
-        iso_exists = os.path.exists(self.iso_path)
-        # if self.inPublicCI() or self.inLocalCI() and
-        if not iso_exists:
-            block_download = self.get_block_download()
-            self.iso_size = block_download.download_via_os(self.iso_path)
-        else:
-            self.iso_size = os.path.getsize(self.iso_path)
-        self.assertEqual(663748608, self.iso_size)
-        # Generate YAML if needed for the ISO file
-        iso_yaml_path = self.iso_path + ".yaml"
-        if not os.path.exists(iso_yaml_path):
-            # Test YAML generation
+        if not os.path.exists(self.sample_path):
+            block_download = BlockDownload(
+                url=self.url,
+                path=self.sample_path,
+                blocksize=self.blocksize,
+                unit=self.unit,
+            )
+            block_download.download_via_os(self.sample_path)
+
+        self.assertTrue(os.path.exists(self.sample_path), "Sample ISO must exist")
+
+        if not os.path.exists(self.sample_path + ".yaml"):
             check = BlockCheck(
                 name=self.name,
-                file1=self.iso_path,
+                file1=self.sample_path,
                 blocksize=self.blocksize,
                 unit=self.unit,
                 head_only=True,
                 create=True,
             )
             check.generate_yaml(self.url)
-            self.assertTrue(
-                os.path.exists(iso_yaml_path), "YAML file should be created"
-            )
+
+        self.assertTrue(os.path.exists(self.sample_path + ".yaml"), "YAML must exist")
+
+    def test_blockcheck(self):
+        """
+        Test generation of YAML metadata for ISO
+        """
+        self.prepare_sample()
+        self.assertEqual(663748608, os.path.getsize(self.sample_path))
 
     def test_yaml_comparison(self):
         """
-        Test comparing a download YAML with a directly created YAML
+        Test comparing regenerated YAML with reference download YAML
         """
-        iso_yaml_path = self.iso_path + ".yaml"
-        if not os.path.exists(iso_yaml_path):
-            self.fail(f"missing {iso_yaml_path}")
+        self.prepare_sample()
+        if not os.path.exists(self.yaml_path):
+            self.fail(f"Missing download YAML at {self.yaml_path}")
 
+        iso_yaml_path = self.sample_path + ".yaml"
         check_compare = BlockCheck(
             name=self.name,
-            file1=self.yaml_path,  # The download YAML
-            file2=iso_yaml_path,  # The direct YAML
+            file1=self.yaml_path,
+            file2=iso_yaml_path,
             blocksize=self.blocksize,
             unit=self.unit,
             head_only=True,
         )
         check_compare.compare()
 
-        # The comparison should show all blocks matching
-        num_fails = len(check_compare.status.symbol_blocks[StatusSymbol.FAIL])
-        self.assertEqual(num_fails, 0, f"Found {num_fails} mismatched blocks")
+        self.assertEqual(
+            len(check_compare.status.symbol_blocks[StatusSymbol.FAIL]),
+            0,
+            "Found mismatched blocks"
+        )
         self.assertTrue(check_compare.status.success)
