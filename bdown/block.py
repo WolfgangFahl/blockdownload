@@ -8,10 +8,10 @@ import hashlib
 import os
 from enum import Enum
 from typing import Optional
-
+from dataclasses import dataclass
 import requests
 from lodstorage.yamlable import lod_storable
-
+from ngwidgets.progress import Progressbar
 
 class StatusSymbol(Enum):
     SUCCESS = "✅"
@@ -54,6 +54,20 @@ class Status:
     def set_description(self, progress_bar):
         progress_bar.set_description(self.summary())
 
+@dataclass
+class BlockIterator:
+    """
+    Configuration dataclass for block processing parameters.
+    """
+    index: int # index of the block in the target
+    offset: int # offset of the block in the outer file to be reassembled later
+    size: int # size of the block
+    block_path: str # relative path of the block file
+    progress_bar: Optional[Progressbar] = None
+    target_file: any = None
+    target_offset: int = 0 # e.g. for block rechunking
+    chunk_size: int=8192 # default chunk size
+    hash_total: any =None
 
 @lod_storable
 class Block:
@@ -188,40 +202,41 @@ class Block:
             print(f"[{self.index:3}] {offset_mb:7,} MB  {symbol}  {message}")
 
     @classmethod
-    def ofIterator(
-        cls,
-        block_index: int,
-        offset: int,
-        chunk_size: int,
-        target_path: str,
-        chunks_iterator,
-        progress_bar=None,
-    ) -> "Block":
+    def ofIterator(cls, bi: BlockIterator, chunks_iterator) -> 'Block':
         """
-        Create a Block from an iterator of data chunks.
+        Create a Block from a BlockIterator configuration and chunks iterator.
+
+        Args:
+            bi: BlockIterator configuration containing block metadata and options
+            chunks_iterator: Iterator yielding data chunks to process
+
+        Returns:
+            Block: Created block with calculated MD5 hashes
         """
         hash_md5 = hashlib.md5()
         hash_head = hashlib.md5()
         first = True
-        block_path = os.path.basename(target_path)
 
-        if progress_bar:
-            progress_bar.set_description(block_path)
+        if bi.progress_bar:
+            bi.progress_bar.set_description(bi.block_path)
 
-        with open(target_path, "wb") as f:
-            for chunk in chunks_iterator:
-                f.write(chunk)
-                hash_md5.update(chunk)
-                if first:
-                    hash_head.update(chunk)
-                    first = False
-                if progress_bar:
-                    progress_bar.update(len(chunk))
+        for chunk in chunks_iterator:
+            # Optional file writing
+            if bi.target_file is not None:
+                bi.target_file.write(chunk)
+            hash_md5.update(chunk)
+            if bi.hash_total:
+                bi.hash_total.update(chunk)
+            if first:
+                hash_head.update(chunk)
+                first = False
+            if bi.progress_bar:
+                bi.progress_bar.update(len(chunk))
 
-        created_block = cls(
-            block=block_index,
-            path=block_path,
-            offset=offset,
+        created_block = Block(
+            block=bi.index,
+            path=bi.block_path,
+            offset=bi.offset,
             md5=hash_md5.hexdigest(),
             md5_head=hash_head.hexdigest(),
         )
@@ -230,47 +245,33 @@ class Block:
     @classmethod
     def ofResponse(
         cls,
-        block_index: int,
-        offset: int,
-        chunk_size: int,
-        target_path: str,
+        bi:BlockIterator,
         response: requests.Response,
-        progress_bar=None,
     ) -> "Block":
         """
         Create a Block from a download HTTP response.
         """
-        chunks_iterator = response.iter_content(chunk_size=chunk_size)
+        chunks_iterator = response.iter_content(chunk_size=bi.chunk_size)
         response_block = cls.ofIterator(
-            block_index=block_index,
-            offset=offset,
-            chunk_size=chunk_size,
-            target_path=target_path,
-            chunks_iterator=chunks_iterator,
-            progress_bar=progress_bar
+            bi, chunks_iterator=chunks_iterator
         )
         return response_block
 
     @classmethod
     def ofFile(
         cls,
-        block_index: int,
-        offset: int,
-        size: int,
-        chunk_size: int,
+        bi:BlockIterator,
         source_path: str,
-        target_path: str,
-        progress_bar=None,
     ) -> "Block":
         """
         Create a Block from a file.
         """
         def file_chunk_iterator():
             with open(source_path, "rb") as f:
-                f.seek(offset)
+                f.seek(bi.offset)
                 bytes_read = 0
-                while bytes_read < size:
-                    bytes_to_read = min(chunk_size, size - bytes_read)
+                while bytes_read < bi.size:
+                    bytes_to_read = min(bi.chunk_size, bi.size - bytes_read)
                     chunk = f.read(bytes_to_read)
                     if not chunk:
                         break
@@ -278,11 +279,7 @@ class Block:
                     yield chunk
 
         file_block = cls.ofIterator(
-            block_index=block_index,
-            offset=offset,
-            chunk_size=chunk_size,
-            target_path=target_path,
+            bi,
             chunks_iterator=file_chunk_iterator(),
-            progress_bar=progress_bar
         )
         return file_block

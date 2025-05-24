@@ -4,9 +4,11 @@ Created on 2025-05-21
 @author: wf
 """
 import os
-from lodstorage.yamlable import lod_storable
-from bdown.block import Block
+
+from bdown.block import Block, BlockIterator
 from bdown.block_fiddler import BlockFiddler
+from lodstorage.yamlable import lod_storable
+
 
 @lod_storable
 class FileSplitter(BlockFiddler):
@@ -37,16 +39,19 @@ class FileSplitter(BlockFiddler):
             part_name = f"{self.name}-{i:04d}.part"
             part_path = os.path.join(target_dir, part_name)
 
-            # Create block from file
-            block = Block.ofFile(
-                block_index=i,
-                offset=start,
-                size=block_size,
-                chunk_size=self.chunk_size,
-                source_path=file_path,
-                target_path=part_path,
-                progress_bar=progress_bar
-            )
+            # Create BlockIterator configuration
+            with open(part_path, "wb") as target_file:
+                bi = BlockIterator(
+                    index=i,
+                    offset=start,
+                    size=block_size,
+                    block_path=part_name,
+                    progress_bar=progress_bar,
+                    target_file=target_file,
+                    chunk_size=self.chunk_size
+                )
+
+                block = Block.ofFile(bi, file_path)
 
             # Save block metadata
             block_yaml_path = os.path.join(target_dir, f"{self.name}-{i:04d}.yaml")

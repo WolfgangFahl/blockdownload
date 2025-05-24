@@ -3,18 +3,18 @@ Created on 2025-05-05
 
 @author: wf
 """
-from queue import Queue
+from concurrent.futures import ThreadPoolExecutor
 import glob
 import os
+from queue import Queue
 import subprocess
-from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
 from typing import List
-import requests
-from lodstorage.yamlable import lod_storable
 
-from bdown.block import Block, StatusSymbol
+from bdown.block import Block, StatusSymbol, BlockIterator
 from bdown.block_fiddler import BlockFiddler
+from lodstorage.yamlable import lod_storable
+import requests
 
 
 @lod_storable
@@ -153,9 +153,30 @@ class BlockDownload(BlockFiddler):
             if progress_bar:
                 progress_bar.set_description(f"Blocks {self.block_range_str()}")
 
-    def _download_block(
-        self, index: int, start: int, end: int, target: str, progress_bar
+    def download_block(
+        self,
+        index: int,
+        start: int,
+        end: int,
+        target: str,
+        progress_bar
     ):
+        """
+        Download a single block of data from the URL to a part file.
+
+        Args:
+            index: Block index number
+            start: Starting byte offset for the range request
+            end: Ending byte offset for the range request
+            target: Target directory to save the part file
+            progress_bar: Progress bar to update during download
+
+        Side effects:
+            - Creates .part file with downloaded data
+            - Creates .yaml file with block metadata
+            - Updates progress bar
+            - Adds block to thread-safe queue
+        """
         part_name = f"{self.name}-{index:04d}"
         part_file = os.path.join(target, f"{part_name}.part")
         block_yaml_path = os.path.join(target, f"{part_name}.yaml")
@@ -180,14 +201,21 @@ class BlockDownload(BlockFiddler):
         if response.status_code not in (200, 206):
             raise Exception(f"HTTP {response.status_code}: {response.text}")
 
-        block = Block.ofResponse(
-            block_index=index,
-            offset=start,
-            chunk_size=self.chunk_size,
-            target_path=part_file,
-            response=response,
-            progress_bar=progress_bar,
-        )
+        block_path=os.path.basename(part_file)
+
+        # Create BlockIterator configuration
+        with open(part_file, "wb") as target_file:
+            bi = BlockIterator(
+                index=index,
+                offset=start,
+                size=end - start + 1,
+                block_path=block_path,
+                progress_bar=progress_bar,
+                target_file=target_file,
+                chunk_size=self.chunk_size
+            )
+
+        block = Block.ofResponse(bi, response)
         block.save_to_yaml_file(block_yaml_path)
         # Add block to the thread-safe queue
         self.block_queue.put(block)
