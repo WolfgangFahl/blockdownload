@@ -9,7 +9,7 @@ import os
 from dataclasses import dataclass, field
 from typing import List, Tuple
 
-from tqdm import tqdm
+from tqdm import tqdm as Progressbar
 
 from bdown.block import Block
 
@@ -171,9 +171,19 @@ class BlockFiddler:
 
         return from_block, to_block, total_bytes
 
-    def get_progress_bar(self, from_block: int, to_block: int = None):
+    def get_progress_bar(self, from_block: int, to_block: int = None) -> Progressbar:
+        """
+        Create a progress bar for processing a range of blocks.
+
+        Args:
+            from_block: Starting block index (inclusive)
+            to_block: Ending block index (inclusive). If None, processes to the last block
+
+        Returns:
+            Progressbar: tqdm Progress bar configured with total bytes for the block range
+        """
         total_bytes = self.calc_block_range_size_bytes(from_block, to_block)
-        bar = tqdm(total=total_bytes, unit="B", unit_scale=True)
+        bar = Progressbar(total=total_bytes, unit="B", unit_scale=True)
         bar.set_description(f"Processing {self.name}")
         bar.update(0)
         return bar

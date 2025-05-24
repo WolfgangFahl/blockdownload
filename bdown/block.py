@@ -11,7 +11,7 @@ from typing import Optional
 from dataclasses import dataclass
 import requests
 from lodstorage.yamlable import lod_storable
-from ngwidgets.progress import Progressbar
+from tqdm import tqdm as Progressbar
 
 class StatusSymbol(Enum):
     SUCCESS = "✅"
