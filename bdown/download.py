@@ -132,7 +132,7 @@ class BlockDownload(BlockFiddler):
 
         if boost == 1:
             for index, start, end in block_specs:
-                self._download_block(index, start, end, target, progress_bar)
+                self.download_block(index, start, end, target, progress_bar)
         else:
             boosted_blocks=self.boosted_download(block_specs, target, progress_bar, boost)
             # Check if we processed all expected blocks
