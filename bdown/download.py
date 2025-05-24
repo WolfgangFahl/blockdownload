@@ -49,7 +49,7 @@ class BlockDownload(BlockFiddler):
             subprocess.CalledProcessError: If the command returns a non-zero exit code
         """
         if cmd is None:
-            cmd = ["wget", "--quiet" "-O", target_path, self.url]
+            cmd = ["wget", "--quiet", "-O", target_path, self.url]
         subprocess.run(cmd, check=True)
 
         if os.path.exists(target_path):
