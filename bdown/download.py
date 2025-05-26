@@ -215,7 +215,7 @@ class BlockDownload(BlockFiddler):
                 chunk_size=self.chunk_size
             )
 
-        block = Block.ofResponse(bi, response)
+            block = Block.ofResponse(bi, response)
         block.save_to_yaml_file(block_yaml_path)
         # Add block to the thread-safe queue
         self.block_queue.put(block)
