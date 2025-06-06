@@ -83,6 +83,13 @@ class Block:
     md5: str = ""  # full md5 hash
     md5_head: str = ""  # hash of first chunk
 
+    def is_consistent(self, other: 'Block') -> bool:
+        """Check if blocks are consistent"""
+        offset_match = self.offset == other.offset
+        md5_match = self.md5 == other.md5
+        consistent = offset_match and md5_match
+        return consistent
+
     def file_exists(self, base_path: str) -> bool:
         """Check if the block file exists at the expected path."""
         full_path = os.path.join(base_path, self.path)

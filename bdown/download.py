@@ -70,18 +70,70 @@ class BlockDownload(BlockFiddler):
     def ofYamlPath(cls, yaml_path: str):
         block_download = cls.load_from_yaml_file(yaml_path)
         block_download.yaml_path = yaml_path
-        block_download.add_blocks_from_part_yaml_files()
+        block_download.check_blocks_from_part_yaml_files()
+        block_download.set_blocks_state()
         return block_download
 
-    def add_blocks_from_part_yaml_files(self):
+    def set_blocks_state(self):
+        # Determine final state
+        no_issues = len(self.issues) == 0
+        all_blocks_present = len(self.blocks) == self.total_blocks
+
+        if all_blocks_present and no_issues:
+            self.blocks_state = "complete_consistent"
+        elif len(self.blocks) == 0:
+            self.blocks_state = "stub_empty"
+        else:
+            self.self.blocks_state= "incomplete_inconsistent"
+
+    def check_blocks_from_part_yaml_files(self):
         """
+        Check consistency between main YAML blocks and part YAML files
+
+        There are three cases:
+           no blocks yet - we will retrieve all from the part YAML files
+           a complete and consistent list of blocks - this is the state we should
+           have after reassembly allowing to remove all part files and yaml files since
+           a filesplit can easily recreate locally
+           an incomplete/inconsistent list of blocks - patching might be viable but reassembly
+           is not possible yet
         """
+        def add_issue(issues, block_index: int, issue: str):
+            if block_index not in issues:
+                issues[block_index] = []
+            issues[block_index].append(issue)
+
         yaml_dir = os.path.dirname(self.yaml_path)
-        for i in range(self.total_blocks):
-            block_yaml = os.path.join(yaml_dir, f"{self.name}-{i:04d}.yaml")
-            if os.path.exists(block_yaml):
-                block = Block.load_from_yaml_file(block_yaml) # @UndefinedVariable
-                self.blocks.append(block)
+        self.blocks_by_index = {}
+        self.issues = {}
+
+        # Index existing blocks
+        for block in self.blocks:
+            block_exists = block.block in self.blocks_by_index
+            if block_exists:
+                add_issue(self.issues, block.block, "duplicate")
+            else:
+                self.blocks_by_index[block.block] = block
+
+        # Check part files
+        for bi in range(self.total_blocks):
+            block_yaml = os.path.join(yaml_dir, f"{self.name}-{bi:04d}.yaml")
+            part_file_exists = os.path.exists(block_yaml)
+
+            if part_file_exists:
+                part_block = Block.load_from_yaml_file(block_yaml) # @UndefinedVariable
+                main_block_exists = bi in self.blocks_by_index
+
+                if not main_block_exists:
+                    # No main block - add from part file
+                    self.blocks.append(part_block)
+                    self.blocks_by_index[bi] = part_block
+                else:
+                    # Check consistency
+                    main_block = self.blocks_by_index[bi]
+                    is_consistent = main_block.is_consistent(part_block)
+                    if not is_consistent:
+                        add_issue(self.issues, bi, "inconsistent")
 
     def get_remote_file_size(self) -> int:
         response = requests.head(self.url, allow_redirects=True)
