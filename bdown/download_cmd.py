@@ -109,8 +109,8 @@ def main():
     parser.add_argument(
         "--blocksize",
         type=int,
-        default=16,
-        help="Block size (default: 16)"
+        default=32,
+        help="Block size (default: 32)"
     )
     parser.add_argument(
         "--unit",

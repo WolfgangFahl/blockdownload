@@ -82,6 +82,7 @@ class Block:
     offset: int
     md5: str = ""  # full md5 hash
     md5_head: str = ""  # hash of first chunk
+
     def file_exists(self, base_path: str) -> bool:
         """Check if the block file exists at the expected path."""
         full_path = os.path.join(base_path, self.path)
