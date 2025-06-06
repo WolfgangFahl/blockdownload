@@ -14,10 +14,12 @@ from lodstorage.yamlable import lod_storable
 from tqdm import tqdm as Progressbar
 
 class StatusSymbol(Enum):
+    """
+    utf-8 status symbols
+    """
     SUCCESS = "✅"
     FAIL = "❌"
     WARN = "⚠️"
-
 
 class Status:
     """
@@ -80,6 +82,66 @@ class Block:
     offset: int
     md5: str = ""  # full md5 hash
     md5_head: str = ""  # hash of first chunk
+    def file_exists(self, base_path: str) -> bool:
+        """Check if the block file exists at the expected path."""
+        full_path = os.path.join(base_path, self.path)
+        exists = os.path.exists(full_path)
+        return exists
+
+    def yaml_exists(self, base_path: str) -> bool:
+        """Check if the yaml metadata file exists."""
+        yaml_path = self.path.replace('.part', '.yaml')
+        full_yaml_path = os.path.join(base_path, yaml_path)
+        exists = os.path.exists(full_yaml_path)
+        return exists
+
+    def md5_matches(self, full_hash: str = None, head_hash: str = None) -> bool:
+        """Check if provided hashes match stored hashes."""
+        full_matches = False
+        head_matches = False
+
+        if full_hash and self.md5:
+            full_matches = self.md5 == full_hash
+
+        if head_hash and self.md5_head:
+            head_matches = self.md5_head == head_hash
+
+        # Return True if any provided hash matches
+        has_full_match = full_hash and full_matches
+        has_head_match = head_hash and head_matches
+        matches = has_full_match or has_head_match
+
+        return matches
+
+    def is_valid(self, base_path: str, check_head: bool = True) -> bool:
+        """Check if block file exists and passes MD5 validation."""
+        file_present = self.file_exists(base_path)
+        if not file_present:
+            return False
+
+        if check_head:
+            chunk_limit = 1
+            expected_hash = self.md5_head
+        else:
+            chunk_limit = None
+            expected_hash = self.md5
+
+        has_expected_hash = bool(expected_hash)
+        if not has_expected_hash:
+            return False
+
+        calculated_hash = self.calc_md5(base_path, chunk_limit=chunk_limit)
+        hash_valid = calculated_hash == expected_hash
+        valid = file_present and hash_valid
+        return valid
+
+    def ensure_yaml(self, base_path: str):
+        """Create yaml file if it doesn't exist."""
+        yaml_present = self.yaml_exists(base_path)
+        if not yaml_present:
+            yaml_path = self.path.replace('.part', '.yaml')
+            full_yaml_path = os.path.join(base_path, yaml_path)
+            self.save_to_yaml_file(full_yaml_path)
 
     def calc_md5(
         self,

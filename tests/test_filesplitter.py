@@ -28,7 +28,7 @@ class TestFileSplitter(BaseBlockTest):
         if not os.path.exists(self.yaml_path):
             return
 
-        bd = BlockDownload.load_from_yaml_file(self.yaml_path)
+        bd = BlockDownload.ofYamlPath(self.yaml_path)
         split_dir = os.path.join(self.download_dir, "split")
         os.makedirs(split_dir, exist_ok=True)
 
@@ -46,6 +46,7 @@ class TestFileSplitter(BaseBlockTest):
 
         self.assertTrue(len(splitter.blocks) > 0)
         splitter.save()
+        self.assertEqual(len(splitter.blocks), len(bd.blocks), "Block count mismatch")
         # verify that the md5 of all blocks match both the splitter output and original download
         for i, block in enumerate(splitter.blocks):
             actual_md5 = block.calc_md5(split_dir)

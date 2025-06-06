@@ -39,7 +39,7 @@ class TestBlockDownload(BaseBlockTest):
             block_size = 32
             unit = "MB"
         if os.path.exists(self.yaml_path):
-            block_download = BlockDownload.load_from_yaml_file(self.yaml_path)
+            block_download = BlockDownload.load_from_yaml_file(self.yaml_path) # @UndefinedVariable
         else:
             block_download = BlockDownload(
                 name=self.name,
@@ -54,10 +54,10 @@ class TestBlockDownload(BaseBlockTest):
             progress_bar.set_description("Downloading")
             with progress_bar:
                 block_download.download(
-                    self.download_dir, from_block, to_block, progress_bar=progress_bar
+                    self.download_dir, from_block, to_block, progress_bar=progress_bar,force=True
                 )
         else:
-            block_download.download(self.download_dir, from_block, to_block)
+            block_download.download(self.download_dir, from_block, to_block,force=True)
 
         block_download.save()
         for i, block in enumerate(block_download.blocks):

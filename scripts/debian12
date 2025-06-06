@@ -1,7 +1,7 @@
 #!/bin/bash
 # WF 2025-05-07
 # Debian 12 blockdownload test
-url=https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-12.10.0-amd64-netinst.iso
+url=https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-12.11.0-amd64-netinst.iso
 name=debian12
 output_path=/tmp/$name
 output_file=$output_path/$name.iso

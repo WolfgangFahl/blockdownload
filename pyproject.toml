@@ -16,7 +16,7 @@ license = "Apache-2.0"
 
 dependencies = [
   # https://github.com/WolfgangFahl/pyLoDStorage
-  "pyLodStorage>=0.14.3",
+  "pyLodStorage>=0.16.2",
   # https://pypi.org/project/tqdm/
   "tqdm>=4.66.5"
 ]

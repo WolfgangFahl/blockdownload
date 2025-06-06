@@ -16,7 +16,6 @@ from bdown.block_fiddler import BlockFiddler
 from lodstorage.yamlable import lod_storable
 import requests
 
-
 @lod_storable
 class BlockDownload(BlockFiddler):
     url: str = None
@@ -63,7 +62,7 @@ class BlockDownload(BlockFiddler):
             min_block = min(self.active_blocks)
             max_block = max(self.active_blocks)
             range_str = (
-                f"{min_block}" if min_block == max_block else f"{min_block}–{max_block}"
+                f"{min_block:04d}-{min_block:04d}" if min_block == max_block else f"{min_block:04d}–{max_block:04d}"
             )
         return range_str
 
@@ -71,7 +70,18 @@ class BlockDownload(BlockFiddler):
     def ofYamlPath(cls, yaml_path: str):
         block_download = cls.load_from_yaml_file(yaml_path)
         block_download.yaml_path = yaml_path
+        block_download.add_blocks_from_part_yaml_files()
         return block_download
+
+    def add_blocks_from_part_yaml_files(self):
+        """
+        """
+        yaml_dir = os.path.dirname(self.yaml_path)
+        for i in range(self.total_blocks):
+            block_yaml = os.path.join(yaml_dir, f"{self.name}-{i:04d}.yaml")
+            if os.path.exists(block_yaml):
+                block = Block.load_from_yaml_file(block_yaml) # @UndefinedVariable
+                self.blocks.append(block)
 
     def get_remote_file_size(self) -> int:
         response = requests.head(self.url, allow_redirects=True)
@@ -79,14 +89,14 @@ class BlockDownload(BlockFiddler):
         file_size = int(response.headers.get("Content-Length", 0))
         return file_size
 
-    def boosted_download(self, block_specs, target, progress_bar, boost):
+    def boosted_download(self, block_specs, target, progress_bar, boost, force):
         """Handle parallel downloading of blocks with proper tracking"""
         processed_blocks = set()
         with ThreadPoolExecutor(max_workers=boost) as executor:
             futures = []
             for index, start, end in block_specs:
                 future = executor.submit(
-                    self.download_block, index, start, end, target, progress_bar
+                    self.download_block, index, start, end, target, progress_bar,force
                 )
                 futures.append((index, future))
 
@@ -107,6 +117,7 @@ class BlockDownload(BlockFiddler):
         to_block: int = None,
         boost: int = 1,
         progress_bar=None,
+        force: bool=False
     ):
         """
         Download selected blocks and save them to individual .part files.
@@ -117,6 +128,7 @@ class BlockDownload(BlockFiddler):
             to_block: Index of the last block (inclusive), or None to download until end.
             boost: Number of parallel download threads to use (default: 1 = serial).
             progress_bar: Optional tqdm-compatible progress bar for visual feedback.
+            force: if True override existing files unconditionally
         """
         if self.size is None:
             self.size = self.get_remote_file_size()
@@ -134,9 +146,9 @@ class BlockDownload(BlockFiddler):
 
         if boost == 1:
             for index, start, end in block_specs:
-                self.download_block(index, start, end, target, progress_bar)
+                self.download_block(index, start, end, target, progress_bar,force)
         else:
-            boosted_blocks=self.boosted_download(block_specs, target, progress_bar, boost)
+            boosted_blocks=self.boosted_download(block_specs, target, progress_bar, boost,force)
             # Check if we processed all expected blocks
             expected_blocks = set(range(from_block, to_block + 1))
             missed_blocks = expected_blocks - boosted_blocks
@@ -147,13 +159,23 @@ class BlockDownload(BlockFiddler):
         self.save_blocks(target)
 
     def update_progress(self, progress_bar, index: int):
+        """
+        Update the progress bar based on block activity.
+
+        Args:
+            progress_bar: tqdm progress bar instance (optional)
+            index (int):
+                - positive → block started (add to active)
+                - negative → block finished (remove from active)
+        """
         with self.progress_lock:
             if index > 0:
                 self.active_blocks.add(index)
             else:
-                self.active_blocks.remove(-index)
+                self.active_blocks.discard(-index)
             if progress_bar:
-                progress_bar.set_description(f"Blocks {self.block_range_str()}")
+                msg=f"{self.name} {self.block_range_str()}"
+                progress_bar.set_description(msg)
 
     def download_block(
         self,
@@ -161,7 +183,8 @@ class BlockDownload(BlockFiddler):
         start: int,
         end: int,
         target: str,
-        progress_bar
+        progress_bar,
+        force: bool = False
     ):
         """
         Download a single block of data from the URL to a part file.
@@ -172,6 +195,7 @@ class BlockDownload(BlockFiddler):
             end: Ending byte offset for the range request
             target: Target directory to save the part file
             progress_bar: Progress bar to update during download
+            force: bool: if true override existing files unconditionally
 
         Side effects:
             - Creates .part file with downloaded data
@@ -182,46 +206,63 @@ class BlockDownload(BlockFiddler):
         part_name = f"{self.name}-{index:04d}"
         part_file = os.path.join(target, f"{part_name}.part")
         block_yaml_path = os.path.join(target, f"{part_name}.yaml")
+        block_size = end - start + 1
 
-        if index < len(self.blocks):
-            existing = self.blocks[index]
-            if os.path.exists(part_file) and existing.md5_head:
-                actual_head = existing.calc_md5(
-                    base_path=target, chunk_size=self.chunk_size, chunk_limit=1
-                )
-                if actual_head == existing.md5_head:
-                    if progress_bar:
-                        progress_bar.set_description(part_name)
-                        progress_bar.update(end - start + 1)
-                    if not os.path.exists(block_yaml_path):
-                        existing.save_to_yaml_file(block_yaml_path)
-                    return
+        # Check existing block using Block methods
+        has_existing_block = index < len(self.blocks)
+        if has_existing_block:
+            existing_block = self.blocks[index]
+            existing_block.path = part_name + ".part"  # Set relative path for validation
 
+            block_is_valid = existing_block.is_valid(target, check_head=True)
+            if block_is_valid and not force:
+                msg=f"✅ {part_name} already valid, skipping"
+                self.logger.info(msg)
+                if progress_bar:
+                    progress_bar.set_description(part_name)
+                    progress_bar.update(block_size)
+                existing_block.ensure_yaml(target)
+                return
+        else:
+            # No existing metadata, check if file exists
+            file_present = os.path.exists(part_file)
+            if file_present and not force:
+                msg=f"⚠️ ️{part_name}.part file exists, use --force to overwrite"
+                self.logger.warning(msg)
+                return
+
+        # Download new block
+        self.logger.info(f"Downloading block {index}: bytes {start}-{end}")
         self.update_progress(progress_bar, index + 1)
+
         headers = {"Range": f"bytes={start}-{end}"}
         response = requests.get(self.url, headers=headers, stream=True)
-        if response.status_code not in (200, 206):
-            raise Exception(f"HTTP {response.status_code}: {response.text}")
 
-        block_path=os.path.basename(part_file)
+        response_valid = response.status_code in (200, 206)
+        if not response_valid:
+            error_message = f"HTTP {response.status_code}: {response.text}"
+            self.logger.error(error_message)
+            raise Exception(error_message)
 
-        # Create BlockIterator configuration
+        block_path = os.path.basename(part_file)
+
         with open(part_file, "wb") as target_file:
             bi = BlockIterator(
                 index=index,
                 offset=start,
-                size=end - start + 1,
+                size=block_size,
                 block_path=block_path,
                 progress_bar=progress_bar,
                 target_file=target_file,
-                chunk_size=self.chunk_size
+                chunk_size=self.chunk_size,
+                hash_total=self.total_hash
             )
 
-            block = Block.ofResponse(bi, response)
-        block.save_to_yaml_file(block_yaml_path)
-        # Add block to the thread-safe queue
-        self.block_queue.put(block)
-        # update progress
+            downloaded_block = Block.ofResponse(bi, response)
+            downloaded_block.save_to_yaml_file(block_yaml_path)
+            self.block_queue.put(downloaded_block)
+
+        self.logger.info(f"✅ {part_name} downloaded successfully")
         self.update_progress(progress_bar, -(index + 1))
 
     def save_blocks(self, target_dir):
@@ -241,7 +282,7 @@ class BlockDownload(BlockFiddler):
 
         # Compare block counts
         if len(cblocks) != len(self.blocks):
-            print(f"{StatusSymbol.WARN}: Collected {len(cblocks)} blocks but have {len(self.blocks)} in memory")
+            print(f"⚠️  Collected {len(cblocks)} blocks but have {len(self.blocks)} in memory")
 
 
     def collect_blocks(self,target_dir)->List[Block]:
@@ -249,6 +290,6 @@ class BlockDownload(BlockFiddler):
         block_files = glob.glob(os.path.join(target_dir, f"{self.name}-*.yaml"))
         blocks=[]
         for block_file in sorted(block_files):
-            block = Block.load_from_yaml_file(block_file)
+            block = Block.load_from_yaml_file(block_file) # @UndefinedVariable
             blocks.append(block)
         return blocks

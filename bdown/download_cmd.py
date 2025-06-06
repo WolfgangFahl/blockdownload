@@ -51,6 +51,7 @@ class BlockDownloadWorker:
                 to_block=self.to_block,
                 boost=self.args.boost,
                 progress_bar=self.progress_bar,
+                force=self.args.force
             )
         if self.args.split:
             from bdown.filesplitter import FileSplitter
@@ -126,6 +127,9 @@ def main():
         help="Number of concurrent download threads (default: 1)",
     )
     parser.add_argument(
+        "--force", action="store_true", help="Overwrite output file if it exists"
+    )
+    parser.add_argument(
         "-otf",
         "--on-the-fly", action="store_true",
         help="Reassemble blocks on-the-fly as they become available during download"
@@ -150,9 +154,7 @@ def main():
     parser.add_argument(
         "--yaml", help="Path to the YAML metadata file (for standalone reassembly)"
     )
-    parser.add_argument(
-        "--force", action="store_true", help="Overwrite output file if it exists"
-    )
+
     parser.add_argument(
         "--output", help="Path where the final target file will be saved"
     )

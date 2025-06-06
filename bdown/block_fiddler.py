@@ -3,6 +3,7 @@ Created on 2025-05-06
 
 @author: wf
 """
+import logging
 import time
 import hashlib
 import os
@@ -10,7 +11,6 @@ from dataclasses import dataclass, field
 from typing import List, Tuple
 
 from tqdm import tqdm as Progressbar
-
 from bdown.block import Block
 
 
@@ -28,6 +28,8 @@ class BlockFiddler:
     blocks: List[Block] = field(default_factory=list)
 
     def __post_init__(self):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.total_hash = hashlib.md5()
         self.unit_multipliers = {
             "KB": 1024,
             "MB": 1024 * 1024,
@@ -183,13 +185,21 @@ class BlockFiddler:
             Progressbar: tqdm Progress bar configured with total bytes for the block range
         """
         total_bytes = self.calc_block_range_size_bytes(from_block, to_block)
-        bar = Progressbar(total=total_bytes, unit="B", unit_scale=True)
-        bar.set_description(f"Processing {self.name}")
-        bar.update(0)
-        return bar
+        progress_bar = Progressbar(total=total_bytes, unit="B", unit_scale=True)
+        progress_bar.set_description(f"Processing {self.name}")
+        progress_bar.update(0)
+        return progress_bar
 
-    def save(self):
+    def save(self, update_md5:bool=True):
+        """
+        Save block metadata to YAML file with optional MD5 update.
+
+        Args:
+            update_md5: Whether to update MD5 from total_hash before saving
+        """
         self.sort_blocks()
+        if not self.md5 or update_md5:
+            self.md5 = self.total_hash.hexdigest()
         if hasattr(self, "yaml_path") and self.yaml_path:
             self.save_to_yaml_file(self.yaml_path)
 
@@ -246,7 +256,7 @@ class BlockFiddler:
                 # just have gotten available a few msecs ago
                 block_yaml = os.path.join(parts_dir, f"{self.name}-{block.index:04d}.yaml")
                 if os.path.exists(block_yaml):
-                    block = Block.load_from_yaml_file(block_yaml)
+                    block = Block.load_from_yaml_file(block_yaml) # @UndefinedVariable
 
             block_size = block.copy_to(parts_dir, output_path, md5=md5)
             total += block_size

@@ -48,7 +48,8 @@ class FileSplitter(BlockFiddler):
                     block_path=part_name,
                     progress_bar=progress_bar,
                     target_file=target_file,
-                    chunk_size=self.chunk_size
+                    chunk_size=self.chunk_size,
+                    hash_total=self.total_hash
                 )
 
                 block = Block.ofFile(bi, file_path)
