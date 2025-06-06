@@ -190,15 +190,15 @@ class BlockFiddler:
         progress_bar.update(0)
         return progress_bar
 
-    def save(self, update_md5:bool=True):
+    def save(self, update_md5_from_total_hash:bool=True):
         """
         Save block metadata to YAML file with optional MD5 update.
 
         Args:
-            update_md5: Whether to update MD5 from total_hash before saving
+            update_md5_from_total_hash: Whether to update MD5 from total_hash before saving
         """
         self.sort_blocks()
-        if not self.md5 or update_md5:
+        if not self.md5 or update_md5_from_total_hash:
             self.md5 = self.total_hash.hexdigest()
         if hasattr(self, "yaml_path") and self.yaml_path:
             self.save_to_yaml_file(self.yaml_path)

@@ -88,9 +88,9 @@ class BlockDownloadWorker:
                 on_the_fly=self.args.on_the_fly,
                 timeout=self.args.timeout,
             )
-            if not self.downloader.md5 and md5:
+            if md5:
                 self.downloader.md5 = md5
-                self.downloader.save()
+                self.downloader.save(update_md5_from_total_hash=False)
 
             print(f"File reassembled successfully: {self.args.output}")
 

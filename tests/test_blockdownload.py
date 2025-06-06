@@ -15,8 +15,14 @@ class TestBlockDownload(BaseBlockTest):
     Test the segmented download using HTTP range requests.
     """
 
+    @classmethod
+    def setUpClass(cls)->None:
+        super(TestBlockDownload, cls).setUpClass()
+        cls.downloaded=False
+
     def setUp(self, debug=True, profile=True):
         super().setUp(debug, profile)
+
 
     def test_blockdownload(self):
         """
@@ -26,6 +32,8 @@ class TestBlockDownload(BaseBlockTest):
         Download file in 512KB segments and save to individual files named by block index.
         Recalculate and compare the MD5 checksums of the downloaded blocks.
         """
+        if TestBlockDownload.downloaded:
+            return
         from_block = 0
         if self.inLocalCI() or self.inPublicCI():
             to_block = None
@@ -66,3 +74,26 @@ class TestBlockDownload(BaseBlockTest):
             print(f"Block {i:04d} offset={block.offset}:")
             print(f"  stored md5 : {stored_md5}")
             print(f"  actual md5 : {actual_md5}")
+        TestBlockDownload.downloaded=True
+
+    def test_reassemble(self):
+        """Test reassembling blocks into complete file and verify MD5"""
+        # First ensure blocks are downloaded
+        self.test_blockdownload()
+
+        # Load the BlockDownload instance
+        block_download = BlockDownload.ofYamlPath(self.yaml_path)
+
+        # Reassemble the file
+        output_file = os.path.join(self.download_dir, f"{self.name}.iso")
+        calculated_md5 = block_download.reassemble(
+            parts_dir=self.download_dir,
+            output_path=output_file,
+            force=True
+        )
+
+        # Verify file exists and MD5 matches
+        self.assertTrue(os.path.exists(output_file))
+        self.assertEqual(calculated_md5, "113c231b4fb992c3e563a3206e6447bb")
+
+        print(f"Reassembled file MD5: {calculated_md5}")

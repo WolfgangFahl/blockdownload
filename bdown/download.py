@@ -255,6 +255,7 @@ class BlockDownload(BlockFiddler):
                 progress_bar=progress_bar,
                 target_file=target_file,
                 chunk_size=self.chunk_size,
+                # do not try to calculate total hashes
                 hash_total=self.total_hash
             )
 
