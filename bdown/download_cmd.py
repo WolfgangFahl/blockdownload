@@ -38,6 +38,9 @@ class BlockDownloadWorker:
             self.work()
 
     def work(self):
+        """
+        handle the command line arguments
+        """
         if self.need_download:
             if self.progress_bar:
                 mode="Patching" if self.args.patch else "Downloading"
@@ -81,6 +84,8 @@ class BlockDownloadWorker:
                 parts_dir=self.args.target,
                 output_path=self.args.output,
                 progress_bar=self.progress_bar,
+                on_the_fly=self.args.on_the_fly,
+                timeout=self.args.timeout,
             )
             if not self.downloader.md5 and md5:
                 self.downloader.md5 = md5
@@ -101,7 +106,10 @@ def main():
         help="Name for the download session (used for .yaml control file)",
     )
     parser.add_argument(
-        "--blocksize", type=int, default=10, help="Block size (default: 10)"
+        "--blocksize",
+        type=int,
+        default=16,
+        help="Block size (default: 16)"
     )
     parser.add_argument(
         "--unit",
@@ -118,6 +126,11 @@ def main():
         help="Number of concurrent download threads (default: 1)",
     )
     parser.add_argument(
+        "-otf",
+        "--on-the-fly", action="store_true",
+        help="Reassemble blocks on-the-fly as they become available during download"
+    )
+    parser.add_argument(
         "--progress", action="store_true", help="Show tqdm progress bar"
     )
     parser.add_argument(
@@ -126,6 +139,12 @@ def main():
     parser.add_argument(
         "--split",
         help="Path to local file to split instead of downloading"
+    )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=300.0,
+        help="Timeout in seconds when waiting for blocks (default: 300.0)"
     )
 
     parser.add_argument(

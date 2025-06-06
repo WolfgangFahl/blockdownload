@@ -3,7 +3,7 @@ Created on 2025-05-06
 
 @author: wf
 """
-
+import time
 import hashlib
 import os
 from dataclasses import dataclass, field
@@ -201,6 +201,8 @@ class BlockFiddler:
         progress_bar=None,
         force=False,
         compute_md5=True,
+        on_the_fly=False,
+        timeout=300.0,
     ) -> str:
         """
         Reassemble a complete file from blocks
@@ -212,6 +214,8 @@ class BlockFiddler:
             progress_bar: Optional progress bar
             force: If True, overwrite existing file without warning
             compute_md5: If True, compute MD5 while copying
+            on_the_fly: If True, wait for blocks to become available
+            timeout: Timeout in seconds when waiting for blocks
 
         Returns:
             The hex digest of the MD5 checksum if computed, else None
@@ -235,6 +239,9 @@ class BlockFiddler:
             blocks_source = self.blocks
 
         for block in blocks_source:
+            if on_the_fly:
+                self.wait_for_block_availability(parts_dir, block, timeout=timeout)
+
             block_size = block.copy_to(parts_dir, output_path, md5=md5)
             total += block_size
             if progress_bar:
@@ -248,3 +255,37 @@ class BlockFiddler:
             msg += f"\nmd5: {md5_hex}"
         print(msg)
         return md5_hex
+
+    def wait_for_block_availability(
+        self,
+        parts_dir: str,
+        block: Block,
+        sleep_time: float = 0.2,
+        timeout: float = 600.0
+    ):
+        """
+        Wait for block file to exist and have correct size
+
+        Args:
+            parts_dir: Directory containing part files
+            block: Block to wait for
+            sleep_time: Sleep interval between checks
+            timeout: Maximum wait time in seconds
+
+        Raises:
+            TimeoutError: If block doesn't become available within timeout
+        """
+        part_file = os.path.join(parts_dir, f"{block.block_path}")
+        expected_size = block.size
+        start_time = time.time()
+
+        while True:
+            if os.path.exists(part_file):
+                actual_size = os.path.getsize(part_file)
+                if actual_size == expected_size:
+                    break
+
+            if time.time() - start_time > timeout:
+                raise TimeoutError(f"Block {block.index} not ready after {timeout}s")
+
+            time.sleep(sleep_time)
