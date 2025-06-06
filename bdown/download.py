@@ -32,7 +32,7 @@ class BlockDownload(BlockFiddler):
         # Add a queue for thread-safe block collection
         self.block_queue = Queue()
         if self.size is None:
-            self.size = self._get_remote_file_size()
+            self.size = self.get_remote_file_size()
 
     def download_via_os(self, target_path: str, cmd=None) -> int:
         """
@@ -73,7 +73,7 @@ class BlockDownload(BlockFiddler):
         block_download.yaml_path = yaml_path
         return block_download
 
-    def _get_remote_file_size(self) -> int:
+    def get_remote_file_size(self) -> int:
         response = requests.head(self.url, allow_redirects=True)
         response.raise_for_status()
         file_size = int(response.headers.get("Content-Length", 0))
@@ -119,7 +119,7 @@ class BlockDownload(BlockFiddler):
             progress_bar: Optional tqdm-compatible progress bar for visual feedback.
         """
         if self.size is None:
-            self.size = self._get_remote_file_size()
+            self.size = self.get_remote_file_size()
         os.makedirs(target, exist_ok=True)
 
         if to_block is None:
