@@ -129,6 +129,8 @@ class BlockDownload(BlockFiddler):
             to_block = total_blocks - 1
 
         block_specs = self.block_ranges(from_block, to_block)
+        # Save YAML early for otf synchronization
+        self.save()
 
         if boost == 1:
             for index, start, end in block_specs:

@@ -240,7 +240,13 @@ class BlockFiddler:
 
         for block in blocks_source:
             if on_the_fly:
+                # Wait for both .part and .yaml files
                 self.wait_for_block_availability(parts_dir, block, timeout=timeout)
+                # load block metadata from individual YAML which might
+                # just have gotten available a few msecs ago
+                block_yaml = os.path.join(parts_dir, f"{self.name}-{block.index:04d}.yaml")
+                if os.path.exists(block_yaml):
+                    block = Block.load_from_yaml_file(block_yaml)
 
             block_size = block.copy_to(parts_dir, output_path, md5=md5)
             total += block_size
