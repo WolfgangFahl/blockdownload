@@ -86,7 +86,7 @@ class BlockDownload(BlockFiddler):
             futures = []
             for index, start, end in block_specs:
                 future = executor.submit(
-                    self._download_block, index, start, end, target, progress_bar
+                    self.download_block, index, start, end, target, progress_bar
                 )
                 futures.append((index, future))
 
