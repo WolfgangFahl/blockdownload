@@ -13,7 +13,7 @@ from typing import List
 
 from bdown.block import Block, StatusSymbol, BlockIterator
 from bdown.block_fiddler import BlockFiddler
-from lodstorage.yamlable import lod_storable
+from basemkit.yamlable import lod_storable
 import requests
 
 @lod_storable

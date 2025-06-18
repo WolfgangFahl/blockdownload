@@ -7,7 +7,7 @@ import os
 
 from bdown.block import Block, BlockIterator
 from bdown.block_fiddler import BlockFiddler
-from lodstorage.yamlable import lod_storable
+from basemkit.yamlable import lod_storable
 
 
 @lod_storable
